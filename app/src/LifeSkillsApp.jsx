@@ -32,6 +32,7 @@ import EmotionThermometer from './components/EmotionThermometer';
 import P2PModal from './components/P2PModal';
 import SettingsModal from './components/SettingsModal';
 import TeacherPinModal from './components/TeacherPinModal';
+import GuideModal from './components/GuideModal';
 import {
   isPinProtectionEnabled,
   isTeacherAuthenticated,
@@ -1933,6 +1934,7 @@ export default function App() {
   // Modali globali
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isP2POpen, setIsP2POpen] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   // --- SYNC ENGINE ---
   useEffect(() => {
@@ -2160,8 +2162,31 @@ export default function App() {
                   <LogIn size={15}/> 💻 Studente: Partecipa con PIN
               </button>
               
-              <div className="absolute top-4 right-4 flex gap-2">
-                 <FullscreenButton className=""/>
+              {/* TOOLBAR CATTEDRA SUPERIORE DESTRA */}
+              <div className="absolute top-4 right-4 flex items-center gap-2">
+                 {/* 1. TASTO GUIDA DOCENTE (Evidente e accogliente) */}
+                 <button 
+                   onClick={() => setIsGuideOpen(true)}
+                   className="px-3.5 py-1.5 rounded-xl bg-blue-100 hover:bg-blue-200 text-blue-900 border-2 border-black font-black text-xs flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:scale-105 active:scale-95 transition-all"
+                   title="Istruzioni complete e pratiche per tutte le funzioni"
+                   aria-label="Apri guida per il docente"
+                 >
+                   <BookOpen size={14} className="text-blue-700"/>
+                   <span className="hidden sm:inline">Guida Docente</span>
+                 </button>
+
+                 {/* 2. TASTO IMPOSTAZIONI */}
+                 <button 
+                   onClick={() => setIsSettingsOpen(true)} 
+                   className="px-3 py-1.5 rounded-xl bg-white hover:bg-gray-100 text-gray-800 border-2 border-black font-black text-xs flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:scale-105 active:scale-95 transition-all" 
+                   title="Impostazioni generali e sicurezza PIN"
+                   aria-label="Impostazioni"
+                 >
+                   <Settings size={14}/>
+                   <span className="hidden md:inline">Impostazioni</span>
+                 </button>
+
+                 {/* 3. TASTO BLOCCA CATTEDRA (Se PIN attivo) */}
                  {isPinProtectionEnabled(data) && (
                    <button 
                      onClick={() => {
@@ -2169,35 +2194,65 @@ export default function App() {
                        setTeacherAuth(false);
                        setIsStudentEntry(true);
                      }} 
-                     className="p-2 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-full transition-colors flex items-center justify-center shadow-sm" 
-                     title="Blocca sessione docente (richiederà il PIN)"
+                     className="px-2.5 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 border-2 border-black rounded-xl font-black text-xs flex items-center gap-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:scale-105 active:scale-95 transition-all" 
+                     title="Blocca sessione docente (richiederà il PIN per riaccedere)"
+                     aria-label="Blocca sessione docente"
                    >
-                     <Lock size={16}/>
+                     <Lock size={13}/>
+                     <span className="hidden lg:inline">Blocca</span>
                    </button>
                  )}
-                 <button onClick={() => setIsSettingsOpen(true)} className="p-2 bg-gray-200 rounded-full hover:bg-gray-300 transition-colors" title="Impostazioni"><Settings size={16}/></button>
-                 <button onClick={() => setIsP2POpen(true)} className="p-2 bg-gray-200 rounded-full hover:bg-gray-300 transition-colors" title="Sincronizzazione P2P"><Smartphone size={16}/></button>
-                 {/* GLOBAL BACKUP BUTTONS */}
-                 <button onClick={() => {
-                    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
-                    const el = document.createElement('a');
-                    el.setAttribute("href", dataStr);
-                    el.setAttribute("download", "lifeskills_FULL_BACKUP.json");
-                    document.body.appendChild(el); el.click(); el.remove();
-                 }} className="p-2 bg-gray-200 rounded-full hover:bg-gray-300 opacity-50 hover:opacity-100 transition-opacity" title="Backup Completo"><Download size={16}/></button>
-                 
-                 <label className="p-2 bg-gray-200 rounded-full hover:bg-gray-300 opacity-50 hover:opacity-100 transition-opacity cursor-pointer" title="Ripristina Backup">
-                    <Upload size={16}/>
-                    <input type="file" accept=".json" className="hidden" onChange={(e) => {
-                        const file = e.target.files[0];
-                        if(!file) return;
-                        const reader = new FileReader();
-                        reader.onload = (evt) => {
-                            try { handleFullUpdate(JSON.parse(evt.target.result)); alert("Ripristinato!"); } catch { alert("File non valido"); }
-                        };
-                        reader.readAsText(file);
-                    }}/>
-                 </label>
+
+                 {/* 4. CLUSTER UTILITY: P2P, BACKUP, FULLSCREEN */}
+                 <div className="flex items-center gap-1 bg-white/95 p-1 rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                   <button 
+                     onClick={() => setIsP2POpen(true)} 
+                     className="p-1.5 hover:bg-gray-100 text-gray-700 rounded-lg transition-colors" 
+                     title="Sincronizzazione P2P locale"
+                     aria-label="Sincronizzazione P2P"
+                   >
+                     <Smartphone size={15}/>
+                   </button>
+
+                   <button 
+                     onClick={() => {
+                       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
+                       const el = document.createElement('a');
+                       el.setAttribute("href", dataStr);
+                       el.setAttribute("download", `lifeskills_FULL_BACKUP_${new Date().toISOString().slice(0,10)}.json`);
+                       document.body.appendChild(el); el.click(); el.remove();
+                     }} 
+                     className="p-1.5 hover:bg-gray-100 text-gray-700 rounded-lg transition-colors" 
+                     title="Scarica Backup Completo JSON"
+                     aria-label="Scarica backup completo"
+                   >
+                     <Download size={15}/>
+                   </button>
+                   
+                   <label 
+                     className="p-1.5 hover:bg-gray-100 text-gray-700 rounded-lg transition-colors cursor-pointer" 
+                     title="Ripristina Backup da file JSON"
+                     aria-label="Ripristina backup"
+                   >
+                     <Upload size={15}/>
+                     <input 
+                       type="file" 
+                       accept=".json" 
+                       className="hidden" 
+                       onChange={(e) => {
+                           const file = e.target.files[0];
+                           if(!file) return;
+                           const reader = new FileReader();
+                           reader.onload = (evt) => {
+                               try { handleFullUpdate(JSON.parse(evt.target.result)); alert("Database ripristinato con successo!"); } catch { alert("File JSON non valido."); }
+                           };
+                           reader.readAsText(file);
+                       }}
+                     />
+                   </label>
+
+                   <FullscreenButton className="p-1.5 hover:bg-gray-100 text-gray-700 rounded-lg transition-colors"/>
+                 </div>
               </div>
           </div>
         </header>
@@ -2219,6 +2274,10 @@ export default function App() {
           appId={APP_ID} 
           data={data}
           onUpdate={handleFullUpdate}
+        />
+        <GuideModal 
+          isOpen={isGuideOpen} 
+          onClose={() => setIsGuideOpen(false)} 
         />
         <TeacherPinModal 
           isOpen={isTeacherPinModalOpen} 
