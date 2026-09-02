@@ -15,25 +15,33 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getFirestore, doc, setDoc, onSnapshot, collection, getDoc, updateDoc, arrayUnion, arrayRemove 
 } from 'firebase/firestore';
-import { 
-  getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken 
+import {
+  getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken
 } from 'firebase/auth';
+
+// --- MODULI APPLICATIVI ---
+import { getFBConfig, getAppId } from './lib/firebaseConfig';
+import { EMOTION_THERMOMETER_DEFAULT } from './data/thermometerData';
+import FullscreenButton from './components/FullscreenButton';
+import EmotionWheelModal from './components/EmotionWheelModal';
+import ScenarioManager from './components/ScenarioManager';
+import EmotionThermometer from './components/EmotionThermometer';
+import P2PModal from './components/P2PModal';
+import SettingsModal from './components/SettingsModal';
+import { exportSessionXLSX, exportWordcloudSVG } from './lib/exporters';
 
 // =================================================================================
 // 1. CONFIGURAZIONE & DATI
 // =================================================================================
-const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyC16Iwrjd9ZhVa979MHGh-P4cQMCBUfePE",
-  authDomain: "life-skills-suite.firebaseapp.com",
-  projectId: "life-skills-suite",
-  storageBucket: "life-skills-suite.firebasestorage.app",
-  messagingSenderId: "674230711374",
-  appId: "1:674230711374:web:e92f3a210d7d3c6367bf1f"
-};
+// La configurazione può essere sovrascritta dalle impostazioni, così ogni
+// scuola può puntare al proprio progetto Firebase senza ricompilare.
+const FIREBASE_CONFIG = getFBConfig();
 
 let db = null;
 let auth = null;
-const APP_ID = 'lifeskills-default'; 
+// Namespace delle collection: dipende dal nome utente, e può essere
+// sovrascritto dal parametro ?ns= per condividere una sessione via link.
+let APP_ID = getAppId();
 
 try {
   const app = getApps().length === 0 ? initializeApp(FIREBASE_CONFIG) : getApp();
@@ -82,7 +90,8 @@ const INITIAL_DB_DATA = {
       options: ["Moltissimo", "Abbastanza", "Poco", "Per nulla"],
       allowMultiple: false
     }
-  ]
+  ],
+  emotion_thermometer: EMOTION_THERMOMETER_DEFAULT
 };
 
 // =================================================================================
@@ -90,24 +99,6 @@ const INITIAL_DB_DATA = {
 // =================================================================================
 
 const PlayIcon = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>;
-
-const FullscreenButton = ({ className }) => {
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  useEffect(() => {
-    const handleFsChange = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', handleFsChange);
-    return () => document.removeEventListener('fullscreenchange', handleFsChange);
-  }, []);
-  const toggle = () => {
-    if (!document.fullscreenElement) { document.documentElement.requestFullscreen().catch((e) => console.error(e)); } 
-    else { if (document.exitFullscreen) document.exitFullscreen(); }
-  };
-  return (
-    <button onClick={toggle} className={`p-2 bg-gray-100 rounded-xl hover:bg-gray-200 border-2 border-gray-200 text-gray-600 transition-all ${className}`} title={isFullscreen ? "Esci da Schermo Intero" : "Schermo Intero"}>
-      {isFullscreen ? <Minimize size={20}/> : <Maximize size={20}/>}
-    </button>
-  );
-};
 
 const Card = ({ title, icon: Icon, color, onClick, description, subtitle }) => {
   const titleSize = title.length > 20 ? 'text-xl' : 'text-2xl';
@@ -754,6 +745,7 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
     element.click();
   };
 
+  const [showNames, setShowNames] = useState(false);
   const exportScreen = () => window.print();
 
   const handleManualAddWord = async (word) => {
@@ -934,6 +926,19 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
              </button>
              <button onClick={exportScreen} className="p-2 bg-gray-100 rounded-xl hover:bg-gray-200 border-2 border-gray-200 text-gray-600" title="Stampa/PDF"><Download size={20}/></button>
              <button onClick={exportResponses} className="p-2 bg-gray-100 rounded-xl hover:bg-gray-200 border-2 border-gray-200 text-gray-600" title="Esporta TXT"><FileJson size={20}/></button>
+             <button onClick={() => exportSessionXLSX(sessionData, sessionCode)} className="p-2 bg-green-100 rounded-xl hover:bg-green-200 border-2 border-green-200 text-green-600" title="Esporta XLSX">
+                <span style={{ fontSize: '14px', fontWeight: '900', lineHeight: '20px' }}>XLS</span>
+             </button>
+             {sessionData.type === 'wordcloud' && (
+               <button onClick={() => exportWordcloudSVG(sessionCode)} className="p-2 bg-blue-100 rounded-xl hover:bg-blue-200 border-2 border-blue-200 text-blue-600" title="Esporta SVG Nuvola">
+                  <span style={{ fontSize: '14px', fontWeight: '900', lineHeight: '20px' }}>SVG</span>
+               </button>
+             )}
+             {sessionData.type === 'qa' && (
+               <button onClick={() => setShowNames(!showNames)} className={`p-2 rounded-xl border-2 transition-all ${showNames ? 'bg-purple-100 hover:bg-purple-200 border-purple-300 text-purple-600' : 'bg-gray-100 hover:bg-gray-200 border-gray-200 text-gray-600'}`} title={showNames ? 'Nascondi nomi' : 'Mostra nomi'}>
+                  <span style={{ fontSize: '16px', lineHeight: '20px' }}>👤</span>
+               </button>
+             )}
              <button onClick={() => setSessionCode(null)} className="p-2 bg-red-100 rounded-xl hover:bg-red-200 border-2 border-red-200 text-red-600"><X size={20}/></button>
          </div>
       </div>
@@ -977,14 +982,43 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
                             {sessionData.responses.slice().reverse().map((res, idx) => {
                                 const isVisible = res.status === 'visible' || (!res.status && res.visible !== false);
                                 if (!isVisible) return null;
-                                const displayText = Array.isArray(res.text) ? res.text : [res.text]; // Normalizza per map
                                 return (
                                     <div key={idx} className="bg-white p-6 rounded-xl shadow-md border-b-4 border-gray-200 hover:-translate-y-1 transition-transform">
-                                        {/* Supporto visualizzazione testo o array */}
+                                        {showNames && res.studentName && (
+                                          <p style={{ fontSize: '11px', color: '#9ca3af', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px', paddingBottom: '6px', borderBottom: '1px solid #f3f4f6' }}>
+                                            {res.studentName}
+                                          </p>
+                                        )}
                                         {Array.isArray(res.text) ? (
-                                        <div className="font-bold text-gray-800 text-lg leading-relaxed whitespace-pre-wrap">{res.text.join('\n\n')}</div> 
+                                          <div>
+                                            {/* In primo piano solo le risposte: le domande restano a richiesta. */}
+                                            {res.text.map((qaItem, qaIdx) => {
+                                              const nlPos = qaItem.indexOf('\n');
+                                              const answerPart = nlPos >= 0 ? qaItem.substring(nlPos + 1) : qaItem;
+                                              return (
+                                                <div key={qaIdx}>
+                                                  {qaIdx > 0 && <hr style={{ margin: '12px 0', borderColor: '#e5e7eb' }} />}
+                                                  <p className="font-bold text-gray-800 text-lg leading-relaxed whitespace-pre-wrap">{answerPart}</p>
+                                                </div>
+                                              );
+                                            })}
+                                            {res.text.some((qaItem) => qaItem.indexOf('\n') >= 0) && (
+                                              <details style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px dashed #d1d5db' }}>
+                                                <summary style={{ fontSize: '13px', color: '#9ca3af', cursor: 'pointer', fontWeight: 'bold' }}>Mostra domande</summary>
+                                                <div style={{ marginTop: '8px' }}>
+                                                  {res.text.map((qaItem, qaIdx) => {
+                                                    const nlPos = qaItem.indexOf('\n');
+                                                    const questionPart = nlPos >= 0 ? qaItem.substring(0, nlPos).replace(/:$/, '') : '';
+                                                    return questionPart ? (
+                                                      <p key={qaIdx} style={{ fontSize: '13px', color: '#6b7280', fontStyle: 'italic', marginBottom: '4px' }}>• {questionPart}</p>
+                                                    ) : null;
+                                                  })}
+                                                </div>
+                                              </details>
+                                            )}
+                                          </div>
                                         ) : (
-                                        <p className="font-bold text-gray-800 text-xl leading-relaxed whitespace-pre-wrap">{res.text}</p>
+                                          <p className="font-bold text-gray-800 text-xl leading-relaxed whitespace-pre-wrap">{res.text}</p>
                                         )}
                                     </div>
                                 );
@@ -1272,117 +1306,6 @@ const StandardActivityView = ({ view, currentScenario, generateScenario, theme }
   </main>
 );
 
-const EmotionWheelModal = ({ isOpen, onClose, targetEmotion, targetCoordinates, isMappingMode, onMapCoordinate, onNextEmotion, allScenarios, onSelectEmotion }) => {
-  const [zoom, setZoom] = useState({ show: false, x: 0, y: 0, width: 0, height: 0 });
-  const [imgSrc, setImgSrc] = useState("ruota_.png");
-  const [zoomLevel, setZoomLevel] = useState(1.5);
-  const [showAllMapped, setShowAllMapped] = useState(false); 
-  const [justSaved, setJustSaved] = useState(false);
-  const imgRef = useRef(null);
-  useEffect(() => { if(!isOpen) { setZoom(prev => ({ ...prev, show: false })); setShowAllMapped(false); setJustSaved(false); } }, [isOpen]);
-  const handleMapClick = (coords) => { onMapCoordinate(coords); setJustSaved(true); setTimeout(() => setJustSaved(false), 1500); };
-  if (!isOpen) return null;
-  const handleMove = (clientX, clientY) => {
-    if (!imgRef.current) return;
-    const { left, top, width, height } = imgRef.current.getBoundingClientRect();
-    const x = clientX - left;
-    const y = clientY - top;
-    if (x < -20 || y < -20 || x > width + 20 || y > height + 20) { setZoom(prev => ({ ...prev, show: false })); return; }
-    setZoom({ show: true, x, y, width, height });
-  };
-  const handleMouseMove = (e) => !isMappingMode && handleMove(e.clientX, e.clientY);
-  const handleTouchMove = (e) => { if(isMappingMode) return; const touch = e.touches[0]; handleMove(touch.clientX, touch.clientY); };
-  const handleImageClick = (e) => {
-    if (!isMappingMode || !onMapCoordinate) return;
-    const rect = imgRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const xPercent = (x / rect.width) * 100;
-    const yPercent = (y / rect.height) * 100;
-    handleMapClick({ x: xPercent, y: yPercent });
-  };
-  const handleZoomIn = (e) => { e.stopPropagation(); setZoomLevel(prev => Math.min(prev + 0.5, 5)); };
-  const handleZoomOut = (e) => { e.stopPropagation(); setZoomLevel(prev => Math.max(prev - 0.5, 1.5)); };
-  const getRotation = (coords) => { if (!coords) return 0; const dx = coords.x - 50; const dy = coords.y - 50; return Math.atan2(dy, dx) * (180 / Math.PI); };
-  const MAGNIFIER_SIZE = 330;
-
-  return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
-      <div className={`bg-white rounded-3xl p-4 max-w-3xl w-full max-h-[95vh] flex flex-col border-4 ${isMappingMode ? 'border-blue-500' : 'border-black'} shadow-[12px_12px_0px_0px_rgba(0,0,0,0.5)]`} onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-4 px-2">
-          <div className="flex flex-col items-start gap-1 w-full mr-4">
-            <h3 className="text-2xl font-black uppercase text-pink-500 flex items-center gap-2"><Heart className="fill-pink-500" /> Ruota delle Emozioni</h3>
-            {targetEmotion && (
-              <div className="flex flex-wrap items-center gap-2 mt-1 w-full">
-                <span className="text-sm font-bold text-gray-600">Target:</span>
-                {isMappingMode ? (
-                  <div className="relative">
-                    <select className="appearance-none bg-red-50 text-red-600 font-black border border-red-200 rounded-lg px-3 py-1 pr-8 text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500" value={targetEmotion} onChange={(e) => onSelectEmotion(e.target.value)}>
-                      {allScenarios && allScenarios.map(s => (<option key={s.id} value={s.text}>{s.text}</option>))}
-                    </select>
-                    <ChevronDown size={14} className="absolute right-2 top-1/2 transform -translate-y-1/2 text-red-400 pointer-events-none" />
-                  </div>
-                ) : (<span className="text-red-500 bg-red-50 px-3 py-1 rounded-lg border border-red-200 font-black shadow-sm text-sm">{targetEmotion}</span>)}
-                <div className="flex items-center gap-2 ml-auto">
-                    {isMappingMode && (
-                      <>
-                        {justSaved && <span className="text-green-600 font-bold text-xs animate-pulse flex items-center gap-1"><Check size={14}/> Salvato!</span>}
-                        <button onClick={() => setShowAllMapped(!showAllMapped)} className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold transition-all border ${showAllMapped ? 'bg-indigo-100 text-indigo-700 border-indigo-300' : 'bg-gray-100 text-gray-600 border-gray-200'}`} title="Mostra/Nascondi tutti i mappati">
-                          {showAllMapped ? <Eye size={14}/> : <EyeOff size={14}/>} <span className="hidden sm:inline">Mappati</span>
-                        </button>
-                      </>
-                    )}
-                    {onNextEmotion && (<button onClick={onNextEmotion} className="flex items-center gap-1 bg-blue-100 text-blue-700 px-3 py-1 rounded-lg text-xs font-bold hover:bg-blue-200 border border-blue-300 transition-all shadow-sm" title="Estrai prossima emozione"><RefreshCw size={14}/> Prossima</button>)}
-                </div>
-              </div>
-            )}
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full border-2 border-transparent hover:border-black transition-all self-start mt-1"><X size={24} /></button>
-        </div>
-        <div className="flex-1 bg-gray-50 rounded-xl p-4 flex items-center justify-center border-2 border-dashed border-gray-300 min-h-[300px] relative z-10">
-          <div className={`relative inline-block ${isMappingMode ? 'cursor-crosshair' : 'cursor-zoom-in'}`} onMouseEnter={() => !isMappingMode && setZoom(z => ({...z, show: true}))} onMouseLeave={() => setZoom(z => ({...z, show: false}))} onMouseMove={handleMouseMove} onTouchStart={() => !isMappingMode && setZoom(z => ({...z, show: true}))} onTouchMove={handleTouchMove} onTouchEnd={() => setZoom(z => ({...z, show: false}))} onClick={handleImageClick}>
-            <img ref={imgRef} src={imgSrc} alt="Ruota delle Emozioni" className="max-w-full max-h-[60vh] object-contain shadow-lg rounded-full animate-in zoom-in duration-300 touch-none select-none" onError={() => { setImgSrc("https://placehold.co/600x600/FF69B4/FFFFFF?text=Inserisci+ruota_.png"); }} />
-            {isMappingMode && showAllMapped && allScenarios && allScenarios.map(s => {
-              if (s.coordinates && s.text !== targetEmotion) {
-                return (
-                  <div key={s.id} className="absolute border-2 border-indigo-600 bg-indigo-500/20 pointer-events-none"
-                    style={{ left: `${s.coordinates.x}%`, top: `${s.coordinates.y}%`, width: '18%', height: '6%', borderRadius: '50%', transform: `translate(-50%, -50%) rotate(${getRotation(s.coordinates)}deg)` }} title={s.text} />
-                );
-              }
-              return null;
-            })}
-            {targetCoordinates && (
-              <div className="absolute border-4 border-red-500 shadow-[0_0_15px_rgba(255,0,0,0.6)] pointer-events-none"
-                style={{ left: `${targetCoordinates.x}%`, top: `${targetCoordinates.y}%`, width: '18%', height: '6%', borderRadius: '50%', transform: `translate(-50%, -50%) rotate(${getRotation(targetCoordinates)}deg)` }} />
-            )}
-            {zoom.show && !isMappingMode && (
-              <div style={{ position: 'absolute', left: zoom.x - MAGNIFIER_SIZE / 2, top: zoom.y - MAGNIFIER_SIZE / 2, width: MAGNIFIER_SIZE, height: MAGNIFIER_SIZE, borderRadius: '50%', border: '6px solid white', boxShadow: '0 10px 40px rgba(0,0,0,0.5)', backgroundImage: `url(${imgSrc})`, backgroundRepeat: 'no-repeat', backgroundColor: 'white', backgroundSize: `${zoom.width * zoomLevel}px ${zoom.height * zoomLevel}px`, backgroundPositionX: -(zoom.x * zoomLevel - MAGNIFIER_SIZE / 2), backgroundPositionY: -(zoom.y * zoomLevel - MAGNIFIER_SIZE / 2), pointerEvents: 'none', zIndex: 50, overflow: 'hidden' }}>
-                 {targetCoordinates && (<div style={{ position: 'absolute', left: `${(targetCoordinates.x / 100 * zoom.width * zoomLevel) - (zoom.x * zoomLevel) + (MAGNIFIER_SIZE / 2)}px`, top: `${(targetCoordinates.y / 100 * zoom.height * zoomLevel) - (zoom.y * zoomLevel) + (MAGNIFIER_SIZE / 2)}px`, width: `${(18 / 100) * zoom.width * zoomLevel}px`, height: `${(6 / 100) * zoom.height * zoomLevel}px`, borderRadius: '50%', border: '4px solid red', transform: `translate(-50%, -50%) rotate(${getRotation(targetCoordinates)}deg)` }} />)}
-                 {showAllMapped && allScenarios && allScenarios.map(s => {
-                   if (s.coordinates && s.text !== targetEmotion) {
-                     return (<div key={`lens-${s.id}`} style={{ position: 'absolute', left: `${(s.coordinates.x / 100 * zoom.width * zoomLevel) - (zoom.x * zoomLevel) + (MAGNIFIER_SIZE / 2)}px`, top: `${(s.coordinates.y / 100 * zoom.height * zoomLevel) - (zoom.y * zoomLevel) + (MAGNIFIER_SIZE / 2)}px`, width: `${(18 / 100) * zoom.width * zoomLevel}px`, height: `${(6 / 100) * zoom.height * zoomLevel}px`, borderRadius: '50%', border: '2px solid indigo', backgroundColor: 'rgba(75, 0, 130, 0.2)', transform: `translate(-50%, -50%) rotate(${getRotation(s.coordinates)}deg)` }} />);
-                   }
-                   return null;
-                 })}
-              </div>
-            )}
-          </div>
-          {!isMappingMode && (
-            <div className="absolute bottom-4 right-4 flex flex-col gap-2 z-[60] bg-white/90 p-2 rounded-2xl border-2 border-gray-200 shadow-xl backdrop-blur-sm">
-              <button onClick={handleZoomIn} className="p-2 rounded-xl hover:bg-pink-50 text-pink-600 transition-colors" title="Zoom In"><ZoomIn size={24} /></button>
-              <div className="text-xs font-black text-center text-gray-500 py-1 border-t border-b border-gray-100">{zoomLevel}x</div>
-              <button onClick={handleZoomOut} className="p-2 rounded-xl hover:bg-gray-100 text-gray-600 transition-colors" title="Zoom Out"><ZoomOut size={24} /></button>
-            </div>
-          )}
-        </div>
-        <p className="text-center mt-2 text-gray-400 font-medium text-xs">
-          {isMappingMode ? <span className="text-blue-600 font-bold">🎯 Clicca sulla ruota per mappare. Salvataggio Cloud (se attivo).</span> : <span>🔍 Passa il cursore o tocca per ingrandire.</span>}
-        </p>
-      </div>
-    </div>
-  );
-};
-
 const HistoryDrawer = ({ isOpen, onClose, history, theme }) => {
   return (
     <>
@@ -1420,156 +1343,6 @@ const HistoryDrawer = ({ isOpen, onClose, history, theme }) => {
   );
 };
 
-const ScenarioManager = ({ scenarios, onUpdate, onClose, type, fullData, onFullUpdate, mappingMode, setMappingMode }) => {
-  const [localScenarios, setLocalScenarios] = useState(scenarios || []);
-  const [newText, setNewText] = useState("");
-  const [importText, setImportText] = useState("");
-  const [mode, setMode] = useState('create');
-  const [feedback, setFeedback] = useState(null);
-  const fileInputRef = useRef(null);
-
-  useEffect(() => { setLocalScenarios(scenarios || []); }, [scenarios]);
-
-  const handleDelete = (id) => {
-    if(window.confirm("Eliminare elemento?")) {
-      const updated = localScenarios.filter(s => s.id !== id);
-      const newFullData = { ...fullData, [type]: updated };
-      onFullUpdate(newFullData);
-    }
-  };
-
-  const handleToggleHidden = (id) => {
-    const updated = localScenarios.map(s => s.id === id ? { ...s, hidden: !s.hidden } : s);
-    setLocalScenarios(updated);
-    const newFullData = { ...fullData, [type]: updated };
-    onFullUpdate(newFullData);
-  };
-
-  const handleAdd = () => {
-    if (!newText.trim()) return;
-    const newItem = { id: Date.now(), text: newText, tags: ["custom"] };
-    const updated = [newItem, ...localScenarios];
-    const newFullData = { ...fullData, [type]: updated };
-    onFullUpdate(newFullData);
-    setNewText("");
-    setFeedback("Aggiunto!");
-    setTimeout(() => setFeedback(null), 2000);
-  };
-
-  const handleImportText = () => {
-    if (!importText.trim()) return;
-    let newItems = [];
-    try {
-      const parsed = JSON.parse(importText);
-      if (Array.isArray(parsed)) {
-        newItems = parsed.map(item => ({ id: Date.now() + Math.random(), text: item.text || item, tags: item.tags || ["importato"] }));
-      }
-    } catch (e) {
-      newItems = importText.split('\n').filter(l => l.trim().length > 0).map(l => ({ id: Date.now() + Math.random(), text: l.trim(), tags: ["importato"] }));
-    }
-    if (newItems.length > 0) {
-      const updated = [...newItems, ...localScenarios];
-      const newFullData = { ...fullData, [type]: updated };
-      onFullUpdate(newFullData);
-      setImportText("");
-      setFeedback(`Importati ${newItems.length}!`);
-    }
-    setTimeout(() => setFeedback(null), 2000);
-  };
-
-  const handleExportDB = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(fullData, null, 2));
-    const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", "life_skills_db.json");
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
-  };
-
-  const handleImportDB = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const parsed = JSON.parse(evt.target.result);
-        if (parsed && typeof parsed === 'object') {
-          onFullUpdate(parsed);
-          alert("Database importato con successo! Salvato in memoria (e cloud se attivo).");
-          onClose();
-        }
-      } catch (err) { alert("Errore nel file JSON."); }
-    };
-    reader.readAsText(file);
-  };
-
-  return (
-    <div className="fixed inset-0 bg-white z-40 overflow-hidden flex flex-col animate-in slide-in-from-bottom duration-300">
-      <div className="p-6 border-b-4 border-black flex justify-between items-center bg-yellow-50">
-        <div><h2 className="text-3xl font-black uppercase">Gestione Dati</h2><p className="uppercase text-sm font-bold text-gray-500">{type.replace('_', ' ')}</p></div>
-        <button onClick={onClose} className="p-3 bg-black text-white rounded-full"><X size={24} /></button>
-      </div>
-      <div className="flex-1 overflow-hidden flex flex-col md:flex-row max-w-7xl mx-auto w-full">
-        <div className="w-full md:w-1/3 p-6 border-b-4 md:border-r-4 border-gray-100 bg-white flex flex-col overflow-y-auto">
-          {type === 'emotion_narratives' && (
-            <div className="bg-blue-50 border-2 border-blue-200 p-4 rounded-2xl mb-6 flex items-center justify-between">
-              <div><h4 className="font-bold text-blue-900 flex items-center gap-2"><MapPin size={18}/> Mappatura Ruota</h4><p className="text-xs text-blue-600">Salva posizione sulla ruota.</p></div>
-              <button onClick={() => setMappingMode(!mappingMode)} className={`w-12 h-6 rounded-full transition-colors relative flex-shrink-0 ml-4 ${mappingMode ? 'bg-blue-500' : 'bg-gray-300'}`}>
-                <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${mappingMode ? 'left-7' : 'left-1'}`} />
-              </button>
-            </div>
-          )}
-          <div className="flex gap-2 mb-6 p-1 bg-gray-100 rounded-xl">
-            <button onClick={() => setMode('create')} className={`flex-1 py-2 font-bold rounded-lg text-sm transition-all ${mode === 'create' ? 'bg-white shadow text-black' : 'text-gray-500'}`}>Nuovo</button>
-            <button onClick={() => setMode('import')} className={`flex-1 py-2 font-bold rounded-lg text-sm transition-all ${mode === 'import' ? 'bg-white shadow text-black' : 'text-gray-500'}`}>Testo</button>
-          </div>
-          <div className={`flex-1 flex flex-col p-6 rounded-3xl border-4 transition-colors mb-8 ${mode === 'create' ? 'bg-blue-50 border-blue-200' : 'bg-green-50 border-green-200'}`}>
-            {mode === 'create' ? (
-              <>
-                <textarea value={newText} onChange={e => setNewText(e.target.value)} placeholder={`Aggiungi nuovo elemento...`} className="w-full flex-1 p-4 rounded-xl border-2 border-blue-200 outline-none resize-none mb-4 bg-white" />
-                <button onClick={handleAdd} disabled={!newText.trim()} className="w-full bg-blue-500 text-white py-3 rounded-xl font-black uppercase border-b-4 border-blue-700 active:border-b-0 active:translate-y-1">Aggiungi</button>
-              </>
-            ) : (
-              <>
-                 <textarea value={importText} onChange={e => setImportText(e.target.value)} placeholder="Incolla elenco..." className="w-full flex-1 p-4 rounded-xl border-2 border-green-200 outline-none resize-none mb-4 bg-white font-mono text-xs" />
-                 <button onClick={handleImportText} disabled={!importText.trim()} className="w-full bg-green-500 text-white py-3 rounded-xl font-black uppercase border-b-4 border-green-700 active:border-b-0 active:translate-y-1">Importa</button>
-              </>
-            )}
-            {feedback && <div className="mt-4 p-3 bg-white rounded-xl shadow-sm border border-green-200 text-green-700 font-bold flex items-center gap-2"><Check size={16}/> {feedback}</div>}
-          </div>
-          <div className="mt-auto border-t-2 border-gray-100 pt-6">
-            <h4 className="font-black text-gray-400 uppercase tracking-widest text-xs mb-3">Area Docente / Backup</h4>
-            <div className="grid grid-cols-2 gap-2">
-              <button onClick={handleExportDB} className="flex flex-col items-center justify-center p-3 rounded-xl bg-gray-50 border-2 border-gray-200 hover:bg-gray-100 hover:border-gray-400 transition-all text-xs font-bold text-gray-600"><Download size={20} className="mb-1 text-gray-400" /> Esporta JSON</button>
-              <label className="flex flex-col items-center justify-center p-3 rounded-xl bg-gray-50 border-2 border-gray-200 hover:bg-gray-100 hover:border-gray-400 transition-all text-xs font-bold text-gray-600 cursor-pointer"><Upload size={20} className="mb-1 text-gray-400" /> Importa JSON <input type="file" accept=".json" onChange={handleImportDB} className="hidden" ref={fileInputRef} /></label>
-            </div>
-          </div>
-        </div>
-        <div className="flex-1 p-6 overflow-y-auto bg-gray-50">
-           <div className="space-y-4">
-            {localScenarios.map((s, i) => (
-              <div key={s.id} className={`group flex gap-4 p-5 bg-white border-2 ${s.hidden ? 'border-gray-100 bg-gray-50 opacity-60' : 'border-gray-200 hover:border-black'} rounded-2xl shadow-sm items-center transition-all`}>
-                <span className="font-black text-gray-300">#{i+1}</span>
-                <div className="flex-1">
-                  <p className={`font-medium text-lg ${s.hidden ? 'line-through text-gray-400' : ''}`}>{s.text}</p>
-                  <div className="flex gap-2 mt-2 flex-wrap">
-                    {s.tags?.map(t => <span key={t} className="text-[10px] bg-gray-100 px-2 py-1 rounded uppercase font-bold text-gray-400">{t}</span>)}{s.coordinates && <span className="text-[10px] bg-blue-100 text-blue-600 px-2 py-1 rounded font-bold flex items-center gap-1"><MapPin size={10}/> Mappato</span>}
-                  </div>
-                </div>
-                <button onClick={() => handleToggleHidden(s.id)} className={`p-2 rounded-lg transition-colors ${s.hidden ? 'text-gray-400 hover:text-gray-600' : 'text-blue-300 hover:text-blue-500'}`} title={s.hidden ? "Riattiva" : "Nascondi"}>
-                  {s.hidden ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-                <button onClick={() => handleDelete(s.id)} className="text-red-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2/></button>
-              </div>
-            ))}
-           </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 export default function App() {
   const [view, setView] = useState('dashboard');
   const [data, setData] = useState(null); 
@@ -1588,12 +1361,27 @@ export default function App() {
   const [moderatorSessionCode, setModeratorSessionCode] = useState(null);
   const [isStudentEntry, setIsStudentEntry] = useState(false); // NUOVO STATO
 
+  // Modali globali
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isP2POpen, setIsP2POpen] = useState(false);
+
   // --- SYNC ENGINE ---
   useEffect(() => {
     // URL Params check
     const params = new URLSearchParams(window.location.search);
     const sessionParam = params.get('session');
     const modeParam = params.get('mode');
+
+    // ?ns= trasporta il namespace nel link di condivisione, così chi entra
+    // da QR finisce sullo stesso database del docente.
+    const nsParam = params.get('ns');
+    if (nsParam) {
+      try {
+        APP_ID = decodeURIComponent(escape(atob(nsParam)));
+      } catch {
+        /* namespace illeggibile: si resta su quello locale */
+      }
+    }
 
     // Se ci sono parametri, impostiamo lo stato MA non blocchiamo l'initAuth
     if (sessionParam) {
@@ -1709,6 +1497,16 @@ export default function App() {
 
   if (!data && !studentSessionCode) return <div className="min-h-screen flex items-center justify-center bg-yellow-50"><Loader2 className="animate-spin text-orange-500"/></div>;
 
+  if (view === 'emotion_thermometer') {
+    return (
+      <EmotionThermometer
+        data={data.emotion_thermometer || INITIAL_DB_DATA.emotion_thermometer}
+        onUpdate={(next) => handleUpdateData({ ...data, emotion_thermometer: next })}
+        onClose={() => setView('dashboard')}
+      />
+    );
+  }
+
   if (view === 'dashboard') {
     return (
       <div className="min-h-screen bg-yellow-50 p-6 font-sans selection:bg-yellow-200">
@@ -1733,6 +1531,8 @@ export default function App() {
               
               <div className="absolute top-4 right-4 flex gap-2">
                  <FullscreenButton className=""/>
+                 <button onClick={() => setIsSettingsOpen(true)} className="p-2 bg-gray-200 rounded-full hover:bg-gray-300 transition-colors" title="Impostazioni"><Settings size={16}/></button>
+                 <button onClick={() => setIsP2POpen(true)} className="p-2 bg-gray-200 rounded-full hover:bg-gray-300 transition-colors" title="Sincronizzazione P2P"><Smartphone size={16}/></button>
                  {/* GLOBAL BACKUP BUTTONS */}
                  <button onClick={() => {
                     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
@@ -1765,7 +1565,11 @@ export default function App() {
           <Card title="Decisioni a Freddo" subtitle="Razionalità" icon={Brain} color="bg-blue-200" description="Scelte complesse e pianificazione." onClick={() => handleViewChange('decisions_cold')} />
           <Card title="Decisioni a Caldo" subtitle="Impulsività" icon={Thermometer} color="bg-orange-200" description="Gestione del rischio e reazioni immediate." onClick={() => handleViewChange('decisions_hot')} />
           <Card title="Feedback & Sondaggi" subtitle="Interattivo" icon={MessageSquare} color="bg-yellow-200" description="Q&A, Brainstorming e Sondaggi anonimi in tempo reale." onClick={() => handleViewChange('feedback_session')} />
+          <Card title="Termometro Emozioni" subtitle="Esercizio" icon={BarChart2} color="bg-amber-200" description="Ordina le intensità emotive dal più debole al più forte." onClick={() => handleViewChange('emotion_thermometer')} />
         </main>
+
+        <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} appId={APP_ID} />
+        <P2PModal isOpen={isP2POpen} onClose={() => setIsP2POpen(false)} data={data} onUpdate={handleFullUpdate} />
       </div>
     );
   }
