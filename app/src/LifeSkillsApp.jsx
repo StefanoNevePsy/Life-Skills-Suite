@@ -657,35 +657,72 @@ const FeedbackModeratorView = ({ sessionCode, user }) => {
 // VISTA INGRESSO STUDENTE
 const StudentEntryView = ({ onJoin, onTeacherUnlock, canUnlock = true }) => {
     const [code, setCode] = useState("");
+    const [name, setName] = useState(() => {
+        try { return localStorage.getItem('lss_student_name') || ""; } catch { return ""; }
+    });
+
+    const handleEnter = () => {
+        if (code.trim().length >= 4) {
+            try {
+                if (name.trim()) localStorage.setItem('lss_student_name', name.trim());
+            } catch {}
+            onJoin(code.trim().toUpperCase(), name.trim());
+        }
+    };
+
     return (
         <div className="min-h-screen bg-yellow-50 flex flex-col items-center justify-center p-6 relative">
             {canUnlock && onTeacherUnlock && (
                 <button
                     type="button"
                     onClick={onTeacherUnlock}
-                    className="absolute top-6 right-6 flex items-center gap-1.5 px-4 py-2 rounded-full bg-white/90 hover:bg-white text-xs font-black text-gray-700 hover:text-black border-2 border-black/10 shadow-sm transition-all"
+                    className="absolute top-6 right-6 flex items-center gap-1.5 px-4 py-2 rounded-full bg-white hover:bg-gray-100 text-xs font-black text-gray-800 border-2 border-black/20 shadow-sm transition-all"
                     title="Accesso riservato al docente tramite PIN"
                 >
-                    <Lock size={14} className="text-amber-600" /> Area Docente
+                    <Lock size={14} className="text-amber-600" /> Accesso Docente
                 </button>
             )}
             <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full text-center border-4 border-black">
-                <div className="bg-yellow-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"><LogIn size={40} className="text-yellow-600"/></div>
+                <div className="bg-yellow-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <LogIn size={40} className="text-yellow-600"/>
+                </div>
                 <h1 className="text-3xl font-black mb-2">Partecipa</h1>
-                <p className="text-gray-500 mb-6">Inserisci il codice fornito dal docente.</p>
-                <input 
-                    value={code} 
-                    onChange={e => setCode(e.target.value.toUpperCase())}
-                    placeholder="CODICE" 
-                    className="w-full text-center text-3xl font-black tracking-widest p-4 border-4 border-gray-200 rounded-2xl mb-4 focus:border-black outline-none uppercase"
-                    maxLength={4}
-                />
+                <p className="text-gray-500 mb-6">Inserisci il codice della stanza e il tuo nome per partecipare.</p>
+                
+                <div className="mb-4 text-left">
+                    <label className="block text-xs font-black uppercase text-gray-600 mb-1.5 tracking-wider">
+                        Codice Stanza (4 lettere):
+                    </label>
+                    <input 
+                        value={code} 
+                        onChange={e => setCode(e.target.value.toUpperCase())}
+                        placeholder="ABCD" 
+                        className="w-full text-center text-3xl font-black tracking-widest p-3.5 border-4 border-gray-200 rounded-2xl focus:border-black outline-none uppercase font-mono"
+                        maxLength={6}
+                        autoFocus
+                    />
+                </div>
+
+                <div className="mb-6 text-left">
+                    <label className="block text-xs font-black uppercase text-gray-600 mb-1.5 tracking-wider">
+                        Il tuo nome o nickname:
+                    </label>
+                    <input 
+                        value={name} 
+                        onChange={e => setName(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') handleEnter(); }}
+                        placeholder="Es. Marco, Anna..." 
+                        className="w-full text-center text-base font-bold p-3 border-2 border-gray-200 rounded-xl focus:border-black outline-none"
+                        maxLength={30}
+                    />
+                </div>
+
                 <button 
-                    onClick={() => code.length >= 4 && onJoin(code)}
-                    disabled={code.length < 4}
-                    className="w-full bg-black text-white py-4 rounded-xl font-bold text-xl hover:scale-105 transition-transform disabled:opacity-50 disabled:transform-none"
+                    onClick={handleEnter}
+                    disabled={code.trim().length < 4}
+                    className="w-full bg-black text-white py-4 rounded-xl font-bold text-xl hover:scale-105 transition-transform disabled:opacity-50 disabled:transform-none shadow-md"
                 >
-                    ENTRA
+                    ENTRA NELL'ATTIVITÀ
                 </button>
             </div>
         </div>
@@ -843,17 +880,9 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
   const [allCollapsed, setAllCollapsed] = useState(false);
   const [collapsedOverrides, setCollapsedOverrides] = useState({});
 
-  // Stato e handler per shortUrl e condivisione Chromebook
-  const [shortUrl, setShortUrl] = useState(null);
-  const [tinyBusy, setTinyBusy] = useState(false);
-  const [copiedLink, setCopiedLink] = useState(false);
-
-  const handleGenerateTinyUrl = async (targetUrl) => {
-    setTinyBusy(true);
-    const res = await generateTinyUrl(targetUrl);
-    if (res) setShortUrl(res);
-    setTinyBusy(false);
-  };
+  // Stato per copia link di condivisione
+  const [copiedBaseLink, setCopiedBaseLink] = useState(false);
+  const [copiedDirectLink, setCopiedDirectLink] = useState(false);
 
   const isNoteCollapsed = (key) => {
     if (collapsedOverrides[key] !== undefined) return collapsedOverrides[key];
@@ -1025,9 +1054,10 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
     );
   }
 
+  const cleanBaseUrl = window.location.origin + window.location.pathname;
   const fbEncoded = encodeFBConfig(getFBConfig());
-  const joinUrl = `${window.location.href.split('?')[0]}?session=${sessionCode}${fbEncoded ? `&fb=${fbEncoded}` : ''}`;
-  const modUrl = `${window.location.href.split('?')[0]}?mode=moderator&session=${sessionCode}`;
+  const joinUrl = `${cleanBaseUrl}?session=${sessionCode}${fbEncoded ? `&fb=${fbEncoded}` : ''}`;
+  const modUrl = `${cleanBaseUrl}?mode=moderator&session=${sessionCode}`;
 
   return (
     <div className="flex flex-col h-full relative">
@@ -1156,10 +1186,10 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
                      <ol className="space-y-4 my-4">
                        <li className="flex items-start gap-2.5">
                          <span className="w-6 h-6 rounded-full bg-black text-white font-black text-xs flex items-center justify-center shrink-0 mt-0.5">1</span>
-                         <div className="text-sm font-bold text-gray-700">
+                         <div className="text-sm font-bold text-gray-700 flex-1 min-w-0">
                            Apri il browser su:
                            <div className="mt-1 font-mono font-black text-sm md:text-base text-blue-600 bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-200 select-all inline-block break-all">
-                             {shortUrl || getStudentBaseUrl() || window.location.host}
+                             {cleanBaseUrl}
                            </div>
                          </div>
                        </li>
@@ -1167,7 +1197,7 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
                        <li className="flex items-start gap-2.5">
                          <span className="w-6 h-6 rounded-full bg-black text-white font-black text-xs flex items-center justify-center shrink-0 mt-0.5">2</span>
                          <div className="text-sm font-bold text-gray-700">
-                           Inserisci il codice PIN:
+                           Digita il codice stanza:
                            <div className="mt-1.5 text-4xl md:text-5xl font-mono font-black tracking-widest text-black bg-yellow-300 px-5 py-2 rounded-2xl border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] inline-block select-all">
                              {sessionCode}
                            </div>
@@ -1177,37 +1207,42 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
                    </div>
 
                    {/* Pulsanti rapidi per il docente */}
-                   <div className="pt-4 border-t-2 border-gray-100 flex flex-wrap gap-2">
+                   <div className="pt-4 border-t-2 border-gray-100 flex flex-col sm:flex-row gap-2">
+                     <button
+                       type="button"
+                       onClick={() => {
+                         navigator.clipboard.writeText(cleanBaseUrl);
+                         setCopiedBaseLink(true);
+                         setTimeout(() => setCopiedBaseLink(false), 2500);
+                       }}
+                       className={`px-3.5 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 border-2 transition-all ${
+                         copiedBaseLink 
+                           ? 'bg-green-100 text-green-700 border-green-300' 
+                           : 'bg-white hover:bg-gray-100 text-gray-800 border-gray-300 shadow-sm'
+                       }`}
+                       title="Copia l'indirizzo principale da scrivere o dettare agli studenti"
+                     >
+                       {copiedBaseLink ? <Check size={14}/> : <Copy size={14}/>}
+                       {copiedBaseLink ? 'Indirizzo copiato!' : 'Copia indirizzo sito (per Chromebook)'}
+                     </button>
+
                      <button
                        type="button"
                        onClick={() => {
                          navigator.clipboard.writeText(joinUrl);
-                         setCopiedLink(true);
-                         setTimeout(() => setCopiedLink(false), 2500);
+                         setCopiedDirectLink(true);
+                         setTimeout(() => setCopiedDirectLink(false), 2500);
                        }}
-                       className={`px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 border-2 transition-all ${
-                         copiedLink 
+                       className={`px-3.5 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 border-2 transition-all ${
+                         copiedDirectLink 
                            ? 'bg-green-100 text-green-700 border-green-300' 
-                           : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-200'
+                           : 'bg-blue-50 hover:bg-blue-100 text-blue-800 border-blue-300 shadow-sm'
                        }`}
-                       title="Copia l'indirizzo diretto da incollare su Google Classroom o Teams"
+                       title="Copia il link diretto già pronto per Google Classroom o Teams"
                      >
-                       {copiedLink ? <Check size={14}/> : <Copy size={14}/>}
-                       {copiedLink ? 'Link copiato!' : 'Copia link diretto (per Classroom)'}
+                       {copiedDirectLink ? <Check size={14}/> : <Share2 size={14}/>}
+                       {copiedDirectLink ? 'Link diretto copiato!' : 'Copia link diretto (per Classroom)'}
                      </button>
-
-                     {!shortUrl && (
-                       <button
-                         type="button"
-                         onClick={() => handleGenerateTinyUrl(joinUrl)}
-                         disabled={tinyBusy}
-                         className="px-3 py-2 rounded-xl font-bold text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 border-2 border-purple-200 flex items-center gap-1.5 transition-all disabled:opacity-50"
-                         title="Genera un link breve tipo tinyurl.com/... facile da scrivere per gli studenti"
-                       >
-                         <Sparkles size={14} />
-                         {tinyBusy ? 'Generazione...' : 'Crea link TinyURL'}
-                       </button>
-                     )}
                    </div>
                 </div>
 
@@ -1353,7 +1388,7 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
   );
 };
 
-const FeedbackStudentView = ({ sessionCode, onExit, user }) => {
+const FeedbackStudentView = ({ sessionCode, onExit, user, initialStudentName = "" }) => {
     const [text, setText] = useState("");
     const [answers, setAnswers] = useState({}); // Per QA Multiplo
     const [selectedOptions, setSelectedOptions] = useState([]); // Array per multi-select
@@ -1361,7 +1396,11 @@ const FeedbackStudentView = ({ sessionCode, onExit, user }) => {
     const [sessionData, setSessionData] = useState(null);
     const [sending, setSending] = useState(false);
     const [sent, setSent] = useState(false);
-    const [alreadySubmitted, setAlreadySubmitted] = useState(false); // NUOVO STATO
+    const [alreadySubmitted, setAlreadySubmitted] = useState(false);
+    const [studentName, setStudentName] = useState(() => {
+        if (initialStudentName && initialStudentName.trim()) return initialStudentName.trim();
+        try { return localStorage.getItem('lss_student_name') || ""; } catch { return ""; }
+    });
 
     useEffect(() => {
         if (!db || !user) return;
@@ -1432,6 +1471,7 @@ const FeedbackStudentView = ({ sessionCode, onExit, user }) => {
             await updateDoc(sessionRef, { 
                 responses: arrayUnion({ 
                     text: payload, 
+                    studentName: studentName.trim() || 'Anonimo',
                     timestamp: new Date().toISOString(), 
                     status: initialStatus,
                     visible: initialStatus === 'visible' 
@@ -1490,6 +1530,24 @@ const FeedbackStudentView = ({ sessionCode, onExit, user }) => {
                         {sessionData.type === 'poll' ? "Sondaggio" : sessionData.type === 'wordcloud' ? "Brainstorming" : "Rispondi"}
                     </h1>
                     {status === 'closed' ? <div className="mt-4 bg-red-50 text-red-500 p-3 rounded-xl font-bold flex items-center justify-center gap-2"><Lock size={18}/> Sessione Terminata</div> : <p className="text-gray-500 text-sm mt-2">La tua risposta sarà visualizzata alla lavagna.</p>}
+                </div>
+
+                {/* CAMPO NOME STUDENTE */}
+                <div className="mb-5 bg-gray-50 p-3 rounded-2xl border-2 border-gray-200 text-left">
+                    <label className="block text-xs font-black uppercase text-gray-500 mb-1 tracking-wider">
+                        👤 Rispondi come:
+                    </label>
+                    <input 
+                        type="text"
+                        value={studentName}
+                        onChange={e => {
+                            setStudentName(e.target.value);
+                            try { localStorage.setItem('lss_student_name', e.target.value); } catch {}
+                        }}
+                        placeholder="Anonimo (scrivi il tuo nome/nickname)..."
+                        className="w-full p-2.5 rounded-xl border border-gray-300 font-bold outline-none focus:border-black text-sm bg-white"
+                        maxLength={30}
+                    />
                 </div>
 
                 {sent ? (
@@ -1705,15 +1763,21 @@ export default function App() {
   // Stato per la modalità Studente (Join) e Moderatore (Mod)
   const [studentSessionCode, setStudentSessionCode] = useState(null);
   const [moderatorSessionCode, setModeratorSessionCode] = useState(null);
-  const [isStudentEntry, setIsStudentEntry] = useState(false);
+  const [studentEnteredName, setStudentEnteredName] = useState("");
 
   // Stato sicurezza e autenticazione docente
   const [isTeacherPinModalOpen, setIsTeacherPinModalOpen] = useState(false);
-  const [teacherAuth, setTeacherAuth] = useState(false);
+  const [teacherAuth, setTeacherAuth] = useState(() => isTeacherAuthenticated());
+
+  const [isStudentEntry, setIsStudentEntry] = useState(() => !isTeacherAuthenticated());
 
   // Ricalcola autenticazione quando arrivano i dati aggiornati da Firebase
   useEffect(() => {
-    setTeacherAuth(isTeacherAuthenticated(data));
+    const isAuth = isTeacherAuthenticated(data);
+    setTeacherAuth(isAuth);
+    if (!isAuth && !studentSessionCode && !moderatorSessionCode) {
+      setIsStudentEntry(true);
+    }
   }, [data]);
 
   // Modali globali
@@ -1736,29 +1800,24 @@ export default function App() {
       }
     }
 
-    // ?ns= trasporta il namespace nel link di condivisione, così chi entra
-    // da QR finisce sullo stesso database del docente.
+    // ?ns= trasporta il namespace nel link di condivisione
     const nsParam = params.get('ns');
     if (nsParam) {
       try {
         APP_ID = decodeURIComponent(escape(atob(nsParam)));
-      } catch {
-        /* namespace illeggibile: si resta su quello locale */
-      }
+      } catch {}
     }
 
-    // Se ci sono parametri, impostiamo lo stato MA non blocchiamo l'initAuth
     if (sessionParam) {
         if(modeParam === 'moderator') {
             setModeratorSessionCode(sessionParam);
         } else {
             setStudentSessionCode(sessionParam);
         }
-    } else if (params.get('student') === '1' || params.get('join') === '1' || window.location.hash === '#student') {
-        setIsStudentEntry(true);
-    } else if (isPinProtectionEnabled(data) && !isTeacherAuthenticated(data)) {
-        // Protezione attiva e dispositivo non autenticato come docente:
-        // apre di default la vista studente anziché la Dashboard!
+        setIsStudentEntry(false);
+    } else if (params.get('teacher') === '1' && isTeacherAuthenticated()) {
+        setIsStudentEntry(false);
+    } else if (!isTeacherAuthenticated()) {
         setIsStudentEntry(true);
     }
 
@@ -1805,8 +1864,18 @@ export default function App() {
       return (
         <>
           <StudentEntryView 
-            onJoin={(code) => { setStudentSessionCode(code); setIsStudentEntry(false); }} 
-            onTeacherUnlock={teacherAuth ? () => setIsStudentEntry(false) : () => setIsTeacherPinModalOpen(true)}
+            onJoin={(code, name) => { 
+              setStudentSessionCode(code); 
+              if (name) setStudentEnteredName(name);
+              setIsStudentEntry(false); 
+            }} 
+            onTeacherUnlock={() => {
+              if (teacherAuth || isTeacherAuthenticated(data)) {
+                setIsStudentEntry(false);
+              } else {
+                setIsTeacherPinModalOpen(true);
+              }
+            }}
             canUnlock={true}
           />
           <TeacherPinModal 
@@ -1823,12 +1892,20 @@ export default function App() {
   }
 
   if (studentSessionCode) {
-      return <FeedbackStudentView sessionCode={studentSessionCode} onExit={() => { 
-          // INVECE DI RELOAD, MOSTRA SOLO ENTRY VIEW
-          window.history.pushState({}, document.title, window.location.pathname); 
-          setStudentSessionCode(null); 
-          setIsStudentEntry(true);
-      }} user={user} />;
+      return (
+        <FeedbackStudentView 
+          sessionCode={studentSessionCode} 
+          initialStudentName={studentEnteredName}
+          onExit={() => { 
+            setStudentSessionCode(null); 
+            window.history.replaceState({}, document.title, window.location.pathname);
+            if (!isTeacherAuthenticated(data)) {
+              setIsStudentEntry(true);
+            }
+          }} 
+          user={user} 
+        />
+      );
   }
   
   if (moderatorSessionCode) {

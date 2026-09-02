@@ -107,18 +107,13 @@ export async function verifyTeacherPin(inputPin, dbData) {
 }
 
 /**
- * Verifica se il dispositivo corrente ha una sessione docente autorizzata.
- * Se la protezione con PIN non è attiva (nessun PIN su Firebase né in locale),
- * restituisce true (accesso libero).
+ * Verifica se questo dispositivo ha un token di sessione docente attivo.
  */
-export function isTeacherAuthenticated(dbData) {
-  if (!isPinProtectionEnabled(dbData)) return true;
+export function hasTeacherSession() {
   try {
-    // 1. Verifica token permanente memorizzato sul dispositivo docente
     const persistentToken = localStorage.getItem(LS_SESSION_TOKEN);
     if (persistentToken) return true;
 
-    // 2. Verifica sessione attiva nella scheda corrente
     const sessionToken = sessionStorage.getItem(SS_SESSION_KEY);
     if (sessionToken === 'active') return true;
 
@@ -126,6 +121,13 @@ export function isTeacherAuthenticated(dbData) {
   } catch {
     return false;
   }
+}
+
+/**
+ * Verifica se il dispositivo corrente ha una sessione docente autorizzata.
+ */
+export function isTeacherAuthenticated(dbData) {
+  return hasTeacherSession();
 }
 
 /**
