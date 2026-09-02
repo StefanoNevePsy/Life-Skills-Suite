@@ -660,14 +660,22 @@ const StudentEntryView = ({ onJoin, onTeacherUnlock, canUnlock = true }) => {
     const [name, setName] = useState(() => {
         try { return localStorage.getItem('lss_student_name') || ""; } catch { return ""; }
     });
+    const [errorMsg, setErrorMsg] = useState("");
 
     const handleEnter = () => {
-        if (code.trim().length >= 4) {
-            try {
-                if (name.trim()) localStorage.setItem('lss_student_name', name.trim());
-            } catch {}
-            onJoin(code.trim().toUpperCase(), name.trim());
+        if (!code.trim() || code.trim().length < 4) {
+            setErrorMsg("Inserisci il codice stanza a 4 lettere.");
+            return;
         }
+        if (!name.trim() || name.trim().length < 2) {
+            setErrorMsg("Inserisci il tuo nome e cognome per partecipare.");
+            return;
+        }
+        setErrorMsg("");
+        try {
+            localStorage.setItem('lss_student_name', name.trim());
+        } catch {}
+        onJoin(code.trim().toUpperCase(), name.trim());
     };
 
     return (
@@ -682,45 +690,51 @@ const StudentEntryView = ({ onJoin, onTeacherUnlock, canUnlock = true }) => {
                     <Lock size={14} className="text-amber-600" /> Accesso Docente
                 </button>
             )}
-            <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full text-center border-4 border-black">
+            <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full text-center border-4 border-black animate-in fade-in zoom-in">
                 <div className="bg-yellow-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
                     <LogIn size={40} className="text-yellow-600"/>
                 </div>
-                <h1 className="text-3xl font-black mb-2">Partecipa</h1>
-                <p className="text-gray-500 mb-6">Inserisci il codice della stanza e il tuo nome per partecipare.</p>
+                <h1 className="text-3xl font-black mb-1 text-gray-900">Partecipa</h1>
+                <p className="text-gray-500 text-xs font-bold mb-6">Inserisci il codice fornito dal docente e il tuo nome.</p>
                 
                 <div className="mb-4 text-left">
-                    <label className="block text-xs font-black uppercase text-gray-600 mb-1.5 tracking-wider">
+                    <label className="block text-xs font-black uppercase tracking-wider text-gray-600 mb-1.5">
                         Codice Stanza (4 lettere):
                     </label>
                     <input 
                         value={code} 
-                        onChange={e => setCode(e.target.value.toUpperCase())}
+                        onChange={e => { setCode(e.target.value.toUpperCase()); setErrorMsg(""); }}
                         placeholder="ABCD" 
-                        className="w-full text-center text-3xl font-black tracking-widest p-3.5 border-4 border-gray-200 rounded-2xl focus:border-black outline-none uppercase font-mono"
+                        className="w-full text-center text-3xl font-black tracking-widest p-3.5 border-4 border-gray-200 rounded-2xl focus:border-black outline-none uppercase font-mono bg-gray-50"
                         maxLength={6}
                         autoFocus
                     />
                 </div>
 
-                <div className="mb-6 text-left">
-                    <label className="block text-xs font-black uppercase text-gray-600 mb-1.5 tracking-wider">
-                        Il tuo nome o nickname:
+                <div className="mb-4 text-left">
+                    <label className="block text-xs font-black uppercase tracking-wider text-gray-600 mb-1.5">
+                        Il tuo Nome e Cognome <span className="text-red-500">*</span>:
                     </label>
                     <input 
                         value={name} 
-                        onChange={e => setName(e.target.value)}
+                        onChange={e => { setName(e.target.value); setErrorMsg(""); }}
                         onKeyDown={e => { if (e.key === 'Enter') handleEnter(); }}
-                        placeholder="Es. Marco, Anna..." 
-                        className="w-full text-center text-base font-bold p-3 border-2 border-gray-200 rounded-xl focus:border-black outline-none"
-                        maxLength={30}
+                        placeholder="Es. Marco Rossi, Anna..." 
+                        className="w-full text-center text-base font-bold p-3 border-2 border-gray-200 rounded-xl focus:border-black outline-none bg-gray-50"
+                        maxLength={35}
                     />
                 </div>
 
+                {errorMsg && (
+                    <div className="mb-4 p-2.5 bg-red-50 border border-red-200 text-red-700 text-xs font-bold rounded-xl text-center">
+                        ⚠️ {errorMsg}
+                    </div>
+                )}
+
                 <button 
                     onClick={handleEnter}
-                    disabled={code.trim().length < 4}
-                    className="w-full bg-black text-white py-4 rounded-xl font-bold text-xl hover:scale-105 transition-transform disabled:opacity-50 disabled:transform-none shadow-md"
+                    disabled={code.trim().length < 4 || name.trim().length < 2}
+                    className="w-full bg-black text-white py-4 rounded-xl font-black text-lg hover:scale-105 transition-transform disabled:opacity-40 disabled:scale-100 disabled:cursor-not-allowed shadow-md"
                 >
                     ENTRA NELL'ATTIVITÀ
                 </button>
@@ -985,15 +999,15 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
         <p className="text-gray-600 mb-8 max-w-md">Scegli un'attività e proietta il QR.</p>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 w-full max-w-4xl">
-            <button onClick={() => setSessionType('qa')} className={`p-6 rounded-2xl border-4 flex flex-col items-center gap-3 transition-all ${sessionType === 'qa' ? 'bg-yellow-200 border-yellow-500 scale-105 shadow-xl' : 'bg-white border-gray-200 hover:border-yellow-300 text-gray-500'}`}>
+            <button onClick={() => setSessionType('qa')} className={`p-6 rounded-2xl border-4 flex flex-col items-center gap-3 transition-all ${sessionType === 'qa' ? 'bg-yellow-200 border-yellow-500 scale-105 shadow-xl text-yellow-950' : 'bg-white border-gray-200 hover:border-yellow-300 text-gray-700'}`}>
                 <MessageSquare size={40}/>
                 <span className="font-black text-lg">Domande & Risposte</span>
             </button>
-            <button onClick={() => setSessionType('wordcloud')} className={`p-6 rounded-2xl border-4 flex flex-col items-center gap-3 transition-all ${sessionType === 'wordcloud' ? 'bg-blue-200 border-blue-500 scale-105 shadow-xl' : 'bg-white border-gray-200 hover:border-blue-300 text-gray-500'}`}>
+            <button onClick={() => setSessionType('wordcloud')} className={`p-6 rounded-2xl border-4 flex flex-col items-center gap-3 transition-all ${sessionType === 'wordcloud' ? 'bg-blue-200 border-blue-500 scale-105 shadow-xl text-blue-950' : 'bg-white border-gray-200 hover:border-blue-300 text-gray-700'}`}>
                 <Cloud size={40}/>
                 <span className="font-black text-lg">Brainstorming</span>
             </button>
-            <button onClick={() => setSessionType('poll')} className={`p-6 rounded-2xl border-4 flex flex-col items-center gap-3 transition-all ${sessionType === 'poll' ? 'bg-green-200 border-green-500 scale-105 shadow-xl' : 'bg-white border-gray-200 hover:border-green-300 text-gray-500'}`}>
+            <button onClick={() => setSessionType('poll')} className={`p-6 rounded-2xl border-4 flex flex-col items-center gap-3 transition-all ${sessionType === 'poll' ? 'bg-green-200 border-green-500 scale-105 shadow-xl text-green-950' : 'bg-white border-gray-200 hover:border-green-300 text-gray-700'}`}>
                 <BarChart2 size={40}/>
                 <span className="font-black text-lg">Sondaggio</span>
             </button>
@@ -1061,43 +1075,89 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
 
   return (
     <div className="flex flex-col h-full relative">
-      <div className="bg-white p-3 rounded-2xl border-b-4 border-black mb-4 flex flex-col md:flex-row justify-between items-center shadow-md gap-4">
-         <div className="flex items-center gap-3">
-             <span className="bg-black text-white px-3 py-1 rounded-lg font-mono font-bold text-xl">{sessionCode}</span>
-             <button onClick={toggleSessionStatus} className={`px-3 py-1 rounded-lg font-bold text-xs flex items-center gap-2 border-2 ${sessionData.active ? 'bg-green-100 text-green-700 border-green-300' : 'bg-red-100 text-red-700 border-red-300'}`}>
+      {/* TOOLBAR SUPERIORE MODERNA & IMPECCABILE */}
+      <div className="bg-white/95 backdrop-blur-sm p-3 rounded-2xl border-4 border-black mb-4 flex flex-wrap items-center justify-between shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] gap-3">
+         
+         {/* GRUPPO 1 (SINISTRA): CODICE STANZA & STATO */}
+         <div className="flex items-center gap-2.5">
+             <div 
+               onClick={() => {
+                 navigator.clipboard.writeText(sessionCode);
+                 alert(`Codice stanza ${sessionCode} copiato!`);
+               }}
+               className="bg-black text-yellow-400 px-3.5 py-1.5 rounded-xl font-mono font-black text-xl tracking-wider cursor-pointer hover:scale-105 transition-transform flex items-center gap-1.5 shadow-sm"
+               title="Clicca per copiare il codice stanza"
+             >
+                 <span>{sessionCode}</span>
+                 <Copy size={13} className="opacity-60 hover:opacity-100" />
+             </div>
+
+             <button 
+               onClick={toggleSessionStatus} 
+               className={`px-3 py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5 border-2 transition-all ${
+                 sessionData.active 
+                   ? 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200' 
+                   : 'bg-rose-100 text-rose-800 border-rose-300 hover:bg-rose-200'
+               }`}
+               title="Clicca per aprire o chiudere la ricezione delle risposte"
+             >
+                <span className={`w-2 h-2 rounded-full ${sessionData.active ? 'bg-emerald-600 animate-pulse' : 'bg-rose-600'}`} />
                 {sessionData.active ? 'APERTA' : 'CHIUSA'}
              </button>
+
+             <span className="hidden sm:inline-block bg-gray-100 text-gray-700 border border-gray-200 px-3 py-1 rounded-xl text-xs font-bold uppercase tracking-wider">
+                 {sessionData.type === 'qa' && "Domande & Risposte"}
+                 {sessionData.type === 'wordcloud' && "Brainstorming"}
+                 {sessionData.type === 'poll' && "Sondaggio"}
+             </span>
          </div>
          
-         <div className="flex-1 text-center font-bold text-gray-500 uppercase text-sm">
-             {sessionData.type === 'qa' && "Domande & Risposte"}
-             {sessionData.type === 'wordcloud' && "Brainstorming"}
-             {sessionData.type === 'poll' && "Sondaggio"}
+         {/* GRUPPO 2 (CENTRO): COMMUTATORE VISTA (QR vs RISULTATI) */}
+         <div className="inline-flex p-1 bg-gray-100 rounded-xl border-2 border-gray-200">
+             <button 
+               onClick={() => setViewMode('qr')} 
+               className={`px-3.5 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition-all ${
+                 viewMode === 'qr' 
+                   ? 'bg-black text-white shadow-sm' 
+                   : 'text-gray-600 hover:text-black hover:bg-gray-200'
+               }`}
+             >
+                 <QrCode size={14}/> Istruzioni &amp; QR
+             </button>
+             <button 
+               onClick={() => setViewMode('responses')} 
+               className={`px-3.5 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition-all ${
+                 viewMode === 'responses' 
+                   ? 'bg-blue-600 text-white shadow-sm' 
+                   : 'text-gray-600 hover:text-black hover:bg-gray-200'
+               }`}
+             >
+                 <MessageSquare size={14}/> Risposte ({sessionData.responses.filter(r => r.status === 'visible' || (!r.status && r.visible !== false)).length})
+             </button>
          </div>
 
-         <div className="flex gap-2">
-             <button onClick={() => setShowModQR(!showModQR)} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-xl font-bold flex items-center gap-2 border-2 border-gray-200" title="Telecomando Moderatore">
-                <Smartphone size={18}/> <span className="hidden lg:inline">Moderazione</span>
-             </button>
-             <button onClick={() => setViewMode(viewMode === 'qr' ? 'responses' : 'qr')} className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-4 py-2 rounded-xl font-bold flex items-center gap-2 border-2 border-blue-200 transition-all">
-                {viewMode === 'qr' ? <><MessageSquare size={18}/> VEDI RISULTATI ({sessionData.responses.filter(r => r.status === 'visible' || (!r.status && r.visible !== false)).length})</> : <><QrCode size={18}/> MOSTRA QR</>}
-             </button>
-             {/* Esportazione Immagine SVG per tutte le modalità */}
+         {/* GRUPPO 3 (DESTRA): CONTROLLI DIDATTICI & STRUMENTI */}
+         <div className="flex flex-wrap items-center gap-2">
+             
+             {/* CONTROLLO DIDATTICO NOMI: ANONIMO VS VISIBILE */}
              <button 
-               onClick={() => exportSessionImage(sessionData, sessionCode, showNames)} 
-               className="p-2 bg-purple-100 hover:bg-purple-200 border-2 border-purple-300 text-purple-700 font-black rounded-xl flex items-center gap-1 transition-all" 
-               title="Salva come immagine vettoriale SVG (tutti gli elementi dell'area di lavoro, zoomabile all'infinito)"
+               onClick={() => setShowNames(!showNames)} 
+               className={`px-3 py-1.5 rounded-xl border-2 font-black text-xs flex items-center gap-1.5 transition-all shadow-sm ${
+                 showNames 
+                   ? 'bg-purple-100 text-purple-900 border-purple-300 hover:bg-purple-200' 
+                   : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
+               }`} 
+               title={showNames ? "I nomi sono visibili alla classe. Clicca per renderli anonimi." : "I nomi sono nascosti alla classe. Clicca per mostrarli."}
              >
-                <Download size={18} />
-                <span style={{ fontSize: '13px', fontWeight: '900', lineHeight: '20px' }}>SVG</span>
+                {showNames ? <Eye size={15} className="text-purple-700"/> : <EyeOff size={15} className="text-slate-600"/>}
+                <span>{showNames ? 'Nomi Visibili' : 'Aula Anonima'}</span>
              </button>
-             <button onClick={exportResponses} className="p-2 bg-gray-100 rounded-xl hover:bg-gray-200 border-2 border-gray-200 text-gray-600" title="Esporta TXT"><FileJson size={20}/></button>
-             <button onClick={() => exportSessionXLSX(sessionData, sessionCode)} className="p-2 bg-green-100 rounded-xl hover:bg-green-200 border-2 border-green-200 text-green-600" title="Esporta XLSX">
-                <span style={{ fontSize: '14px', fontWeight: '900', lineHeight: '20px' }}>XLS</span>
-             </button>
+
+             {/* CONTROLLI SPECIFICI Q&A */}
              {sessionData.type === 'qa' && (
                 <>
-                  <div className="flex items-center bg-gray-100 rounded-xl border-2 border-gray-200 p-0.5" title="Regola dimensione testo (per far stare più cose a schermo)">
+                  {/* Regolazione font */}
+                  <div className="flex items-center bg-gray-100 rounded-xl border-2 border-gray-200 p-0.5" title="Regola dimensione testo delle note">
                     <button
                       type="button"
                       onClick={() => {
@@ -1107,11 +1167,11 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
                       }}
                       disabled={qaFontSize === 'sm'}
                       className="px-2 py-1 font-black text-xs text-gray-700 hover:bg-gray-200 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                      title="Riduci testo (far stare più note a schermo)"
+                      title="Testo più piccolo"
                     >
                       A-
                     </button>
-                    <span className="px-1.5 font-bold text-[11px] text-gray-600 uppercase select-none">
+                    <span className="px-1.5 font-black text-[10px] text-gray-500 uppercase select-none">
                       {QA_FONT_SIZES[qaFontSize]?.label || 'Testo'}
                     </span>
                     <button
@@ -1123,28 +1183,68 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
                       }}
                       disabled={qaFontSize === 'xl'}
                       className="px-2 py-1 font-black text-xs text-gray-700 hover:bg-gray-200 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                      title="Ingrandisci testo"
+                      title="Testo più grande"
                     >
                       A+
                     </button>
                   </div>
+
+                  {/* Espandi / Collassa note */}
                   <button
                     type="button"
                     onClick={toggleAllCollapse}
-                    className={`p-2 rounded-xl border-2 transition-all flex items-center gap-1.5 ${allCollapsed ? 'bg-amber-100 hover:bg-amber-200 border-amber-300 text-amber-800' : 'bg-gray-100 hover:bg-gray-200 border-gray-200 text-gray-600'}`}
+                    className={`px-3 py-1.5 rounded-xl border-2 transition-all flex items-center gap-1.5 text-xs font-black ${
+                      allCollapsed 
+                        ? 'bg-amber-100 hover:bg-amber-200 border-amber-300 text-amber-900' 
+                        : 'bg-gray-100 hover:bg-gray-200 border-gray-200 text-gray-700'
+                    }`}
                     title={allCollapsed ? "Espandi tutte le note (mostra risposte)" : "Collassa tutte (mostra solo nomi)"}
                   >
-                    {allCollapsed ? <ChevronDown size={18}/> : <ChevronUp size={18}/>}
-                    <span className="text-xs font-bold hidden md:inline">
-                      {allCollapsed ? "Espandi tutte" : "Solo nomi"}
-                    </span>
-                  </button>
-                  <button onClick={() => setShowNames(!showNames)} className={`p-2 rounded-xl border-2 transition-all ${showNames ? 'bg-purple-100 hover:bg-purple-200 border-purple-300 text-purple-600' : 'bg-gray-100 hover:bg-gray-200 border-gray-200 text-gray-600'}`} title={showNames ? 'Nascondi nomi' : 'Mostra nomi'}>
-                     <span style={{ fontSize: '16px', lineHeight: '20px' }}>👤</span>
+                    {allCollapsed ? <ChevronDown size={14}/> : <ChevronUp size={14}/>}
+                    <span>{allCollapsed ? "Espandi" : "Solo nomi"}</span>
                   </button>
                 </>
              )}
-             <button onClick={() => setSessionCode(null)} className="p-2 bg-red-100 rounded-xl hover:bg-red-200 border-2 border-red-200 text-red-600"><X size={20}/></button>
+
+             {/* GRUPPO ESPORTAZIONE */}
+             <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-xl border border-gray-200">
+                 <button 
+                   onClick={() => exportSessionImage(sessionData, sessionCode, showNames)} 
+                   className="px-2.5 py-1 bg-purple-100 hover:bg-purple-200 text-purple-800 font-black text-xs rounded-lg flex items-center gap-1 border border-purple-200 transition-all shadow-xs" 
+                   title="Salva screenshot SVG zoomabile di tutta l'area"
+                 >
+                    <Download size={13} /> SVG
+                 </button>
+                 <button 
+                   onClick={() => exportSessionXLSX(sessionData, sessionCode)} 
+                   className="px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-black text-xs rounded-lg flex items-center gap-1 border border-emerald-200 transition-all shadow-xs" 
+                   title="Esporta foglio Excel con tutti i nomi e risposte"
+                 >
+                    <Download size={13} /> XLS
+                 </button>
+             </div>
+
+             {/* TELECOMANDO MODERATORE */}
+             <button 
+               onClick={() => setShowModQR(!showModQR)} 
+               className="p-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl border-2 border-gray-200 transition-all" 
+               title="Telecomando smartphone per moderare da remoto"
+             >
+                <Smartphone size={16}/>
+             </button>
+
+             {/* CHIUSURA SESSIONE */}
+             <button 
+               onClick={() => {
+                 if (confirm("Vuoi chiudere questa sessione e tornare alla configurazione?")) {
+                   setSessionCode(null);
+                 }
+               }} 
+               className="p-2 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-xl border-2 border-rose-300 transition-all"
+               title="Termina sessione"
+             >
+                <X size={16}/>
+             </button>
          </div>
       </div>
 
@@ -1437,6 +1537,11 @@ const FeedbackStudentView = ({ sessionCode, onExit, user, initialStudentName = "
     const handleSubmit = async (e) => {
         e.preventDefault();
         
+        if (!studentName || studentName.trim().length < 2) {
+            alert("Devi inserire il tuo nome e cognome per inviare la risposta.");
+            return;
+        }
+
         // Se non sono ammesse risposte multiple e ha già inviato
         if (!sessionData.allowMultipleResponses && alreadySubmitted) return;
 
@@ -1493,7 +1598,54 @@ const FeedbackStudentView = ({ sessionCode, onExit, user, initialStudentName = "
         setSending(false);
     };
 
-    // --- NUOVA SCHERMATA DI CARICAMENTO STILIZZATA ---
+    // --- SE LO STUDENTE NON HA ANCORA INSERITO IL NOME (ES. ACCESSO DA QR/LINK DIRETTO) ---
+    if (!studentName || studentName.trim().length < 2) {
+        return (
+            <div className="min-h-screen bg-yellow-50 flex flex-col justify-center items-center p-6">
+                <div className="max-w-md w-full bg-white rounded-3xl shadow-xl border-4 border-black p-8 text-center animate-in fade-in zoom-in">
+                    <div className="w-16 h-16 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center mx-auto mb-4 border-2 border-blue-200">
+                        <span style={{ fontSize: '28px' }}>👤</span>
+                    </div>
+                    <span className="bg-blue-100 text-blue-800 px-3.5 py-1 rounded-full text-xs font-black uppercase tracking-wider">
+                        Sessione {sessionCode}
+                    </span>
+                    <h2 className="text-2xl font-black text-gray-900 mt-3 mb-2">Come ti chiami?</h2>
+                    <p className="text-gray-500 text-xs font-bold mb-6">
+                        Inserisci il tuo nome e cognome prima di rispondere. Il docente potrà scegliere se visualizzarlo o tenerlo anonimo alla lavagna.
+                    </p>
+                    <form onSubmit={(e) => {
+                        e.preventDefault();
+                        const inputVal = e.target.elements.nameInput.value.trim();
+                        if (inputVal.length >= 2) {
+                            setStudentName(inputVal);
+                            try { localStorage.setItem('lss_student_name', inputVal); } catch {}
+                        }
+                    }}>
+                        <input
+                            name="nameInput"
+                            type="text"
+                            required
+                            autoFocus
+                            placeholder="Il tuo nome e cognome..."
+                            className="w-full text-center text-lg font-bold p-3.5 border-2 border-gray-300 focus:border-black rounded-xl outline-none mb-4 bg-gray-50"
+                            maxLength={35}
+                        />
+                        <button
+                            type="submit"
+                            className="w-full bg-black text-white py-3.5 rounded-xl font-black text-base hover:scale-105 transition-transform shadow-md"
+                        >
+                            CONTINUA
+                        </button>
+                    </form>
+                    <button onClick={onExit} className="mt-4 text-xs font-bold text-gray-400 hover:text-black uppercase tracking-wider">
+                        Esci
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // --- SCHERMATA DI CARICAMENTO STILIZZATA ---
     if (status === "loading") {
         return (
             <div className="min-h-screen bg-yellow-50 flex items-center justify-center p-6">
@@ -1532,22 +1684,28 @@ const FeedbackStudentView = ({ sessionCode, onExit, user, initialStudentName = "
                     {status === 'closed' ? <div className="mt-4 bg-red-50 text-red-500 p-3 rounded-xl font-bold flex items-center justify-center gap-2"><Lock size={18}/> Sessione Terminata</div> : <p className="text-gray-500 text-sm mt-2">La tua risposta sarà visualizzata alla lavagna.</p>}
                 </div>
 
-                {/* CAMPO NOME STUDENTE */}
-                <div className="mb-5 bg-gray-50 p-3 rounded-2xl border-2 border-gray-200 text-left">
-                    <label className="block text-xs font-black uppercase text-gray-500 mb-1 tracking-wider">
-                        👤 Rispondi come:
-                    </label>
-                    <input 
-                        type="text"
-                        value={studentName}
-                        onChange={e => {
-                            setStudentName(e.target.value);
-                            try { localStorage.setItem('lss_student_name', e.target.value); } catch {}
-                        }}
-                        placeholder="Anonimo (scrivi il tuo nome/nickname)..."
-                        className="w-full p-2.5 rounded-xl border border-gray-300 font-bold outline-none focus:border-black text-sm bg-white"
-                        maxLength={30}
-                    />
+                {/* RIEPILOGO NOME STUDENTE REGISTRATO */}
+                <div className="mb-5 bg-blue-50/80 p-3 rounded-2xl border-2 border-blue-200 flex items-center justify-between text-left">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <span className="text-base">👤</span>
+                        <div className="min-w-0">
+                            <span className="block text-[10px] font-black uppercase text-blue-700 tracking-wider">Partecipi come:</span>
+                            <span className="font-black text-sm text-gray-900 truncate block">{studentName}</span>
+                        </div>
+                    </div>
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        const newName = prompt("Modifica il tuo nome:", studentName);
+                        if (newName && newName.trim().length >= 2) {
+                            setStudentName(newName.trim());
+                            try { localStorage.setItem('lss_student_name', newName.trim()); } catch {}
+                        }
+                      }}
+                      className="text-xs font-bold text-blue-700 hover:text-blue-900 underline ml-2"
+                    >
+                        Cambia
+                    </button>
                 </div>
 
                 {sent ? (
