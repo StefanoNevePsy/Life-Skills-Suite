@@ -2,7 +2,52 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Stili custom per scrollbar e animazioni */
-body {
+/* Impeccable Design Foundation */
+html, body {
   background-color: #FEFCE8; /* yellow-50 */
+  color: #111827; /* gray-900 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Selezione testo coerente con la palette */
+::selection {
+  background-color: #FDE047; /* yellow-300 */
+  color: #000000;
+}
+
+/* Focus ring accessibile ad alto contrasto */
+:focus-visible {
+  outline: 3px solid #000000;
+  outline-offset: 2px;
+}
+
+/* Scrollbar personalizzata e discreta */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #FEFCE8;
+}
+::-webkit-scrollbar-thumb {
+  background: #D1D5DB;
+  border-radius: 9999px;
+  border: 2px solid #FEFCE8;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9CA3AF;
+}
+
+/* Rispetto delle preferenze di movimento ridotto */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

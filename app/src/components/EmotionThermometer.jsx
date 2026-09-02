@@ -278,7 +278,7 @@ export default function EmotionThermometer({ data, onUpdate, onClose }) {
               className="bg-white border-4 border-black rounded-3xl p-4 md:p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] relative flex gap-4"
               style={{ minHeight: '650px' }}
             >
-              <div className="w-12 md:w-16 flex flex-col justify-between items-center py-2 border-r-4 border-slate-200 border-dashed shrink-0 gap-2">
+              <div className="w-12 md:w-16 flex flex-col justify-between items-center py-2 border-r-2 border-slate-300 border-dashed shrink-0 gap-2">
                 {SCALE_NUMBERS.map((num) => (
                   <div key={num} className="relative w-full text-center flex items-center justify-center">
                     <span className="font-black text-gray-300 text-lg md:text-xl">{num}</span>

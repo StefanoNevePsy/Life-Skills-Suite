@@ -365,10 +365,10 @@ export default function SettingsModal({ isOpen, onClose, appId, data, onUpdate }
           </div>
 
           {/* SEZIONE 1: INTELLIGENZA ARTIFICIALE (GEMINI) */}
-          <div className="bg-gradient-to-br from-purple-50 to-indigo-50/50 p-5 rounded-2xl border-2 border-purple-200">
+          <div className="bg-purple-50/80 p-5 rounded-2xl border-2 border-purple-200">
             <div className="flex items-center justify-between mb-3">
-              <label className="text-sm font-black text-purple-900 uppercase tracking-wide flex items-center gap-2">
-                <Bot size={18} className="text-purple-600" />
+              <label className="text-sm font-black text-purple-950 uppercase tracking-wide flex items-center gap-2">
+                <Bot size={18} className="text-purple-700" />
                 Intelligenza Artificiale (Google Gemini)
               </label>
               <a 
@@ -618,7 +618,7 @@ export default function SettingsModal({ isOpen, onClose, appId, data, onUpdate }
                 Progetto Cloud Firebase
               </label>
               <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
-                isFirebaseConfigured() ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'
+                isFirebaseConfigured() ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-gray-700'
               }`}>
                 {isFirebaseConfigured() ? 'Connesso' : 'Modalità Locale'}
               </span>

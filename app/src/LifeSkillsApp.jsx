@@ -516,7 +516,7 @@ const SetManager = ({ sets, onUpdate, onClose }) => {
       
       <div className="flex-1 overflow-hidden flex flex-col md:flex-row max-w-7xl mx-auto w-full">
         {/* LISTA SET (SX) */}
-        <div className="w-full md:w-1/3 p-6 border-r-4 border-gray-100 bg-white flex flex-col overflow-y-auto">
+        <div className="w-full md:w-1/3 p-6 border-b md:border-b-0 md:border-r border-gray-200 bg-white flex flex-col overflow-y-auto">
           <div className="mb-6">
             <h4 className="font-bold text-gray-400 uppercase tracking-widest text-xs mb-2">Nuovo Set</h4>
             <div className="flex gap-2">
@@ -618,10 +618,10 @@ const FeedbackModeratorView = ({ sessionCode, user }) => {
             
             {/* TABS */}
             <div className="flex gap-2 mb-4">
-                <button onClick={() => setActiveTab('pending')} className={`flex-1 py-2 rounded-lg font-bold ${activeTab === 'pending' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400'}`}>
+                <button onClick={() => setActiveTab('pending')} className={`flex-1 py-2 rounded-lg font-bold transition-colors ${activeTab === 'pending' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-300 hover:text-white'}`}>
                     Da Approvare ({pending.length})
                 </button>
-                <button onClick={() => setActiveTab('published')} className={`flex-1 py-2 rounded-lg font-bold ${activeTab === 'published' ? 'bg-green-600 text-white' : 'bg-gray-800 text-gray-400'}`}>
+                <button onClick={() => setActiveTab('published')} className={`flex-1 py-2 rounded-lg font-bold transition-colors ${activeTab === 'published' ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-300 hover:text-white'}`}>
                     Pubblicati ({published.length})
                 </button>
             </div>
@@ -1348,7 +1348,7 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
              {sessionData.questions && sessionData.questions.length > 0 && (
                 <div className="w-full max-w-5xl px-4 text-center mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
                     {sessionData.questions.map((q) => (
-                        <div key={q.id} className="bg-white/90 backdrop-blur-sm border-l-8 border-yellow-400 p-6 rounded-r-2xl shadow-lg text-left flex flex-col">
+                        <div key={q.id} className="bg-white/95 backdrop-blur-sm border-2 border-black p-6 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-left flex flex-col">
                             {q.imgUrl && <div className="mb-4 rounded-xl overflow-hidden border-2 border-gray-100 h-48 w-full"><img src={q.imgUrl} alt="Stimolo" className="w-full h-full object-cover" /></div>}
                             <h2 className="text-2xl font-black text-gray-800">{q.text}</h2>
                         </div>
@@ -1401,7 +1401,7 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
                                 }
 
                                 return (
-                                    <div key={noteKey} className={`bg-white rounded-xl shadow-md border-b-4 border-gray-200 hover:-translate-y-0.5 transition-all flex flex-col justify-between ${fontCfg.cardPad}`}>
+                                    <div key={noteKey} className={`bg-white rounded-xl shadow-sm border-2 border-black/15 hover:border-black hover:-translate-y-0.5 transition-all flex flex-col justify-between ${fontCfg.cardPad}`}>
                                         <div>
                                           <div className="flex items-center justify-between pb-2 mb-3 border-b border-gray-100">
                                             <div className="flex items-center gap-2 min-w-0">
@@ -1717,7 +1717,7 @@ const FeedbackStudentView = ({ sessionCode, onExit, user, initialStudentName = "
                                     {sessionData.options.map(opt => {
                                         const isSelected = selectedOptions.includes(opt);
                                         return (
-                                            <button key={opt} type="button" onClick={() => handleOptionToggle(opt)} className={`w-full p-4 rounded-xl border-2 font-bold transition-all flex items-center justify-between ${isSelected ? 'bg-blue-500 text-white border-blue-600' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'}`}>
+                                            <button key={opt} type="button" onClick={() => handleOptionToggle(opt)} className={`w-full p-4 rounded-xl border-2 font-bold transition-all flex items-center justify-between ${isSelected ? 'bg-blue-600 text-white border-blue-700 shadow-sm' : 'bg-white border-gray-200 text-gray-800 hover:bg-gray-50'}`}>
                                                 {opt}
                                                 {sessionData.allowMultiple && isSelected && <CheckSquare size={20}/>}
                                             </button>
@@ -1813,7 +1813,7 @@ const StandardActivityView = ({ view, currentScenario, generateScenario, theme, 
            <div className="flex flex-col items-center z-10 animate-fade-in">
               <div className={`w-32 h-32 ${theme.light} rounded-full flex items-center justify-center mb-6 animate-pulse`}><RotateCcw size={48} className={theme.accent} /></div>
               <h3 className="text-2xl font-black text-gray-400 uppercase mb-6">Nessun elemento attivo</h3>
-              <button onClick={generateScenario} className={`px-10 py-5 rounded-2xl text-white font-black text-2xl shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-3 border-b-8 active:border-b-0 active:translate-y-2 ${theme.button}`}>ESTRAI {view === 'emotion_narratives' ? 'EMOZIONE' : 'SCENARIO'}</button>
+              <button onClick={generateScenario} className={`px-10 py-5 rounded-2xl text-white font-black text-2xl shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:scale-105 active:scale-95 transition-all flex items-center gap-3 border-2 border-black ${theme.button}`}>ESTRAI {view === 'emotion_narratives' ? 'EMOZIONE' : 'SCENARIO'}</button>
            </div>
         ) : (
           <div className="w-full flex flex-col h-full animate-fade-in z-10">

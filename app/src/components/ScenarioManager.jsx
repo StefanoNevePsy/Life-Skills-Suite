@@ -325,7 +325,7 @@ export default function ScenarioManager({
 
       <div className="flex-1 overflow-hidden flex flex-col md:flex-row max-w-7xl mx-auto w-full">
         {/* Left column: Sets Management & Creation */}
-        <div className="w-full md:w-5/12 lg:w-4/12 p-6 border-b-4 md:border-r-4 border-gray-100 bg-white flex flex-col overflow-y-auto">
+        <div className="w-full md:w-5/12 lg:w-4/12 p-6 border-b md:border-b-0 md:border-r border-gray-200 bg-white flex flex-col overflow-y-auto">
           
           {/* SEZIONE SET */}
           <div className="mb-6 p-4 rounded-2xl bg-amber-50/70 border-2 border-amber-200">
@@ -376,7 +376,7 @@ export default function ScenarioManager({
                         e.stopPropagation();
                         handleActivateSet('all');
                       }}
-                      className="bg-gray-100 hover:bg-green-100 text-gray-700 hover:text-green-800 border border-gray-300 px-2 py-0.5 rounded text-[10px] font-bold"
+                      className="bg-gray-100 hover:bg-emerald-100 text-gray-800 hover:text-emerald-900 border border-gray-300 px-2.5 py-1 rounded-lg text-[11px] font-black transition-colors"
                     >
                       Attiva
                     </button>
@@ -430,13 +430,13 @@ export default function ScenarioManager({
 
                     <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                       {isActive ? (
-                        <span className="bg-green-600 text-white px-2 py-0.5 rounded text-[10px] font-black">
+                        <span className="bg-emerald-600 text-white px-2.5 py-1 rounded-lg text-[10px] font-black tracking-wider">
                           ATTIVO
                         </span>
                       ) : (
                         <button
                           onClick={() => handleActivateSet(s.id)}
-                          className="bg-gray-100 hover:bg-green-100 text-gray-700 hover:text-green-800 border border-gray-300 px-2 py-0.5 rounded text-[10px] font-bold"
+                          className="bg-gray-100 hover:bg-emerald-100 text-gray-800 hover:text-emerald-900 border border-gray-300 px-2.5 py-1 rounded-lg text-[11px] font-black transition-colors"
                           title="Rendi attivo per l'estrazione"
                         >
                           Attiva
@@ -539,7 +539,7 @@ export default function ScenarioManager({
                 <button
                   onClick={handleAdd}
                   disabled={!newText.trim()}
-                  className="w-full bg-blue-500 text-white py-2.5 rounded-xl font-black uppercase text-xs border-b-4 border-blue-700 active:border-b-0 active:translate-y-1 disabled:opacity-40"
+                  className="w-full bg-blue-600 text-white py-2.5 rounded-xl font-black uppercase text-xs border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 active:translate-x-1 active:translate-y-1 active:shadow-none disabled:opacity-40 transition-all"
                 >
                   Aggiungi Stimolo
                 </button>
@@ -555,7 +555,7 @@ export default function ScenarioManager({
                 <button
                   onClick={handleImportText}
                   disabled={!importText.trim()}
-                  className="w-full bg-green-500 text-white py-2.5 rounded-xl font-black uppercase text-xs border-b-4 border-green-700 active:border-b-0 active:translate-y-1 disabled:opacity-40"
+                  className="w-full bg-emerald-600 text-white py-2.5 rounded-xl font-black uppercase text-xs border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 active:translate-x-1 active:translate-y-1 active:shadow-none disabled:opacity-40 transition-all"
                 >
                   Importa Elenco
                 </button>
@@ -639,9 +639,9 @@ export default function ScenarioManager({
                     <button
                       onClick={runAi}
                       disabled={aiBusy}
-                      className="w-full py-2.5 rounded-lg text-xs font-black text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 shadow-sm disabled:opacity-40 transition-all flex items-center justify-center gap-1.5"
+                      className="w-full py-2.5 rounded-xl text-xs font-black text-black bg-amber-400 hover:bg-amber-300 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 disabled:opacity-40 transition-all flex items-center justify-center gap-1.5"
                     >
-                      <Sparkles size={14} />
+                      <Sparkles size={14} className="text-amber-900" />
                       {aiBusy ? 'Generazione in corso...' : `GENERA CON GEMINI (${aiCount})`}
                     </button>
                   </>
