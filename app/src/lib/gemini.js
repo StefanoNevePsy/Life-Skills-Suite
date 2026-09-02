@@ -24,11 +24,13 @@ export function setAIKey(k) {
   }
 }
 
+export const DEFAULT_AI_MODEL = 'gemini-3.5-flash-lite';
+
 export function getAIModel() {
   try {
-    return localStorage.getItem(LS_AI_MODEL) || '';
+    return localStorage.getItem(LS_AI_MODEL) || DEFAULT_AI_MODEL;
   } catch {
-    return '';
+    return DEFAULT_AI_MODEL;
   }
 }
 
@@ -120,6 +122,8 @@ export const AI_CONTEXT = {
   emotion_narratives: 'nomi di emozioni e loro sfumature (una o due parole ciascuna)',
   affectivity_sexuality:
     'scenari su affettività, relazioni sentimentali e sessualità adolescenziale, trattati con rispetto, senza contenuti espliciti',
+  effective_communication:
+    'scenari di dialogo e interazione sociale adolescenziale per riconoscere e analizzare la comunicazione passiva, aggressiva e assertiva (risposte a richieste, conflitti, critiche, confini personali)',
 };
 
 export function aiBuildPrompt(type, count, topics, existing) {

@@ -1,0 +1,284 @@
+[
+  {
+    "id": "disgusto",
+    "label": "Disgusto",
+    "colorHex": "#B5EAD7",
+    "baseEmoji": "🤢",
+    "levels": [
+      {
+        "intensity": 1,
+        "label": "Delusa",
+        "emoji": "😒",
+        "image": "./thermometer/disgusto_1.png"
+      },
+      {
+        "intensity": 2,
+        "label": "Infastidita",
+        "emoji": "😖",
+        "image": "./thermometer/disgusto_2.png"
+      },
+      {
+        "intensity": 3,
+        "label": "Indignato",
+        "emoji": "🤢",
+        "image": "./thermometer/disgusto_3.png"
+      },
+      {
+        "intensity": 4,
+        "label": "Nauseata",
+        "emoji": "🤮",
+        "image": "./thermometer/disgusto_4.png"
+      },
+      {
+        "intensity": 5,
+        "label": "Disgustato",
+        "emoji": "😵",
+        "image": "./thermometer/disgusto_5.png"
+      }
+    ]
+  },
+  {
+    "id": "felicita",
+    "label": "Felicità",
+    "colorHex": "#FFDAC1",
+    "baseEmoji": "🙂",
+    "levels": [
+      {
+        "intensity": 1,
+        "label": "Serena",
+        "emoji": "😌",
+        "image": "./thermometer/felicita_1.png"
+      },
+      {
+        "intensity": 2,
+        "label": "Divertita",
+        "emoji": "🙂",
+        "image": "./thermometer/felicita_2.png"
+      },
+      {
+        "intensity": 3,
+        "label": "Felice",
+        "emoji": "😊",
+        "image": "./thermometer/felicita_3.png"
+      },
+      {
+        "intensity": 4,
+        "label": "Gioioso",
+        "emoji": "😄",
+        "image": "./thermometer/felicita_4.png"
+      },
+      {
+        "intensity": 5,
+        "label": "Eccitato",
+        "emoji": "🤩",
+        "image": "./thermometer/felicita_5.png"
+      },
+      {
+        "intensity": 6,
+        "label": "Raggiante",
+        "emoji": "😐",
+        "image": "./thermometer/felicita_6.png"
+      }
+    ]
+  },
+  {
+    "id": "paura",
+    "label": "Paura",
+    "colorHex": "#C7CEEA",
+    "baseEmoji": "😨",
+    "levels": [
+      {
+        "intensity": 1,
+        "label": "Ansiosa",
+        "emoji": "😟",
+        "image": "./thermometer/paura_1.png"
+      },
+      {
+        "intensity": 2,
+        "label": "Preoccupata",
+        "emoji": "😬",
+        "image": "./thermometer/paura_2.png"
+      },
+      {
+        "intensity": 3,
+        "label": "Intimidita",
+        "emoji": "😨",
+        "image": "./thermometer/paura_3.png"
+      },
+      {
+        "intensity": 4,
+        "label": "Allarmato",
+        "emoji": "😱",
+        "image": "./thermometer/paura_4.jpg"
+      },
+      {
+        "intensity": 5,
+        "label": "Impaurito",
+        "emoji": "💀",
+        "image": "./thermometer/paura_5.png"
+      },
+      {
+        "intensity": 6,
+        "label": "Spaventata",
+        "emoji": "😐",
+        "image": "./thermometer/paura_6.png"
+      },
+      {
+        "intensity": 7,
+        "label": "Terrorizzato",
+        "emoji": "😐",
+        "image": "./thermometer/paura_7.png"
+      }
+    ]
+  },
+  {
+    "id": "rabbia",
+    "label": "Rabbia",
+    "colorHex": "#FF9AA2",
+    "baseEmoji": "😠",
+    "levels": [
+      {
+        "intensity": 1,
+        "label": "Contrariato",
+        "emoji": "😒",
+        "image": "./thermometer/rabbia_1.png"
+      },
+      {
+        "intensity": 2,
+        "label": "Stizzito",
+        "emoji": "😠",
+        "image": "./thermometer/rabbia_2.png"
+      },
+      {
+        "intensity": 3,
+        "label": "Irritata",
+        "emoji": "😤",
+        "image": "./thermometer/rabbia_3.png"
+      },
+      {
+        "intensity": 4,
+        "label": "Frustrata",
+        "emoji": "😡",
+        "image": "./thermometer/rabbia_4.png"
+      },
+      {
+        "intensity": 5,
+        "label": "Arrabbiato",
+        "emoji": "🤬",
+        "image": "./thermometer/rabbia_5.png"
+      },
+      {
+        "intensity": 6,
+        "label": "Furiosa",
+        "emoji": "😐",
+        "image": "./thermometer/rabbia_6.png"
+      }
+    ]
+  },
+  {
+    "id": "sorpresa",
+    "label": "Sorpresa",
+    "colorHex": "#FFFFD1",
+    "baseEmoji": "😲",
+    "levels": [
+      {
+        "intensity": 1,
+        "label": "Confuso",
+        "emoji": "🤔",
+        "image": "./thermometer/sorpresa_1.png"
+      },
+      {
+        "intensity": 2,
+        "label": "Stupita",
+        "emoji": "😮",
+        "image": "./thermometer/sorpresa_2.png"
+      },
+      {
+        "intensity": 3,
+        "label": "Colpita",
+        "emoji": "😯",
+        "image": "./thermometer/sorpresa_3.png"
+      },
+      {
+        "intensity": 4,
+        "label": "Sorpresa",
+        "emoji": "😲",
+        "image": "./thermometer/sorpresa_4.png"
+      },
+      {
+        "intensity": 5,
+        "label": "Sbalordita",
+        "emoji": "🤯",
+        "image": "./thermometer/sorpresa_5.png"
+      },
+      {
+        "intensity": 6,
+        "label": "Meravigliato",
+        "emoji": "😐",
+        "image": "./thermometer/sorpresa_6.png"
+      },
+      {
+        "intensity": 7,
+        "label": "Sconvolto",
+        "emoji": "😐",
+        "image": "./thermometer/sorpresa_7.png"
+      }
+    ]
+  },
+  {
+    "id": "tristezza",
+    "label": "Tristezza",
+    "colorHex": "#A2E1DB",
+    "baseEmoji": "😢",
+    "levels": [
+      {
+        "intensity": 1,
+        "label": "Pensierosa",
+        "emoji": "😟",
+        "image": "./thermometer/tristezza_1.png"
+      },
+      {
+        "intensity": 2,
+        "label": "Malinconico",
+        "emoji": "😔",
+        "image": "./thermometer/tristezza_2.png"
+      },
+      {
+        "intensity": 3,
+        "label": "Scontenta",
+        "emoji": "😢",
+        "image": "./thermometer/tristezza_3.png"
+      },
+      {
+        "intensity": 4,
+        "label": "Offeso",
+        "emoji": "😭",
+        "image": "./thermometer/tristezza_4.png"
+      },
+      {
+        "intensity": 5,
+        "label": "Triste",
+        "emoji": "😩",
+        "image": "./thermometer/tristezza_5.png"
+      },
+      {
+        "intensity": 6,
+        "label": "Addolorata",
+        "emoji": "😐",
+        "image": "./thermometer/tristezza_6.png"
+      },
+      {
+        "intensity": 7,
+        "label": "Mortificato",
+        "emoji": "😐",
+        "image": "./thermometer/tristezza_7.png"
+      },
+      {
+        "intensity": 8,
+        "label": "Disperata",
+        "emoji": "😐",
+        "image": "./thermometer/tristezza_8.png"
+      }
+    ]
+  }
+]

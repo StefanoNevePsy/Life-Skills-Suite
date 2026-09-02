@@ -130,5 +130,29 @@ export const initialScenarios = {
     { id: 28, text: "Durante un rapporto dici 'basta' e l'altro insiste o si offende.", tags: ["consenso"] },
     { id: 29, text: "Ti piace qualcuno che è già impegnato e questa persona ti dà corda.", tags: ["rispetto"] },
     { id: 30, text: "Ti senti solo/a anche quando sei con il tuo partner.", tags: ["connessione"] }
+  ],
+
+  // ATTIVITÀ 6: COMUNICAZIONE EFFICACE (PASSIVA, AGGRESSIVA, ASSERTIVA)
+  effective_communication: [
+    { id: 1, text: "Un tuo compagno ti chiede di fargli copiare i compiti per l'ennesima volta. Tu hai passato il pomeriggio a studiare e rispondi a testa bassa: 'Vabbè dai, prendi pure il quaderno... basta che non se ne accorga il prof.'", tags: ["passiva", "scuola"] },
+    { id: 2, text: "Un amico arriva con 40 minuti di ritardo al vostro appuntamento senza avvisare. Appena lo vedi gli urli contro davanti a tutti: 'Sei sempre il solito egoista irresponsabile! Fai schifo, non ti azzardare mai più a farmi aspettare!'", tags: ["aggressiva", "amicizia"] },
+    { id: 3, text: "In un lavoro di gruppo, un compagno non ha svolto la parte assegnata. Gli dici con calma: 'Ho notato che manca la tua parte e la consegna è domani. Mi preoccupa non finire in tempo: come possiamo riorganizzarci adesso?'", tags: ["assertiva", "collaborazione"] },
+    { id: 4, text: "Il gruppo decide di andare in una pizzeria che non ti piace affatto e dove i prezzi sono troppo alti per te. Ti chiedono se va bene e dici: 'Sì sì, per me è uguale, fate voi...'", tags: ["passiva", "gruppo"] },
+    { id: 5, text: "Il tuo compagno di banco continua a picchiettare rumorosamente con la penna mentre stai facendo una verifica. Ti volti di scatto, gli strappi la penna e la lanci per terra dicendo: 'Smettila deficiente!'", tags: ["aggressiva", "scuola"] },
+    { id: 6, text: "Un amico ti fa una battuta sul tuo modo di vestire che ti ferisce. Lo prendi da parte e gli dici: 'Capisco che per te fosse una battuta, ma quel commento mi ha dato fastidio. Ti chiedo di non rifarlo.'", tags: ["assertiva", "confini"] },
+    { id: 7, text: "Tua madre ti assegna un compito domestico proprio mentre avevi pianificato di riposarti un'ora dopo una settimana pesante. Sospiri, non dici nulla, ma passi il resto della giornata rispondendo a monosillabi e sbattendo le porte.", tags: ["passiva-aggressiva", "famiglia"] },
+    { id: 8, text: "Sei in coda alla mensa o al bar e qualcuno ti passa sfacciatamente davanti. Tu lo guardi dritto negli occhi e gli dici con tono fermo: 'Scusa, la fila inizia dietro. Stavamo aspettando il nostro turno.'", tags: ["assertiva", "rispetto"] },
+    { id: 9, text: "Un insegnante valuta un tuo compito con un voto che ritieni ingiusto rispetto ai criteri spiegati. A fine lezione chiedi con cortesia: 'Professore, potremmo rivedere insieme gli errori? Vorrei capire meglio cosa migliorare rispetto agli obiettivi.'", tags: ["assertiva", "scuola"] },
+    { id: 10, text: "Un compagno ti accusa falsamente di aver sparso una voce su di lui. Tu scoppi a piangere, ti scusi anche se non hai fatto nulla e ti chiudi in bagno per evitare lo scontro.", tags: ["passiva", "conflitto"] },
+    { id: 11, text: "Sei stanco e vuoi andare a casa, ma i tuoi amici insistono per restare ancora. Dici con fermezza e un sorriso: 'Ragazzi, mi sono divertito molto ma sono davvero stanco. Stasera vado, ci vediamo domani!'", tags: ["assertiva", "autonomia"] },
+    { id: 12, text: "Durante una discussione su un argomento controverso, un compagno esprime un'opinione opposta alla tua. Tu alzi la voce: 'Ma cosa dici? Non capisci niente, la tua idea è una stupidaggine totale!'", tags: ["aggressiva", "dialogo"] },
+    { id: 13, text: "Un amico ti chiede in prestito la tua giacca preferita. Non ti va di prestarla perché hai paura si rovini, ma rispondi: 'Mah... se proprio ti serve... spero solo non succeda niente.'", tags: ["passiva", "confini"] },
+    { id: 14, text: "Un tuo amico continua a interromperti mentre stai raccontando qualcosa che per te è molto importante. Ti fermi e dici con calma: 'Vorrei finire di raccontarti questa cosa prima di sentire il tuo parere, mi dai un minuto?'", tags: ["assertiva", "ascolto"] },
+    { id: 15, text: "Il cameriere porta un piatto completamente diverso da quello che avevi ordinato. Non dici nulla per paura di creare disturbo e mangi solo un pezzo di pane.", tags: ["passiva", "bisogni"] },
+    { id: 16, text: "In palestra qualcuno occupa l'attrezzo per guardare il telefono per 15 minuti. Ti avvicini e gli gridi: 'Ehi ti svegli? Non sei a casa tua, levati di mezzo!'", tags: ["aggressiva", "convivenza"] },
+    { id: 17, text: "Un amico ti chiede di accompagnarlo a fare shopping, ma hai già un altro impegno. Rispondi: 'Oggi ho già preso un impegno e non posso. Sabato prossimo però sono libero, ti andrebbe di andarci allora?'", tags: ["assertiva", "gestione del tempo"] },
+    { id: 18, text: "Qualcuno fa un complimento sincero a un tuo lavoro. Tu arrossisci e dici: 'Ma no dai, fa schifo, è venuto male per puro caso...'", tags: ["passiva", "autostima"] },
+    { id: 19, text: "Un tuo compagno di progetto prende tutti i meriti davanti agli altri per un'idea che è stata tua. Davanti a tutti dici con tranquillità: 'Sono felice che l'idea piaccia, ci ho lavorato molto ieri sera per impostarla.'", tags: ["assertiva", "riconoscimento"] },
+    { id: 20, text: "Tuo fratello prende le tue cose senza chiedere permesso. Gli dici urlando: 'Sei un ladro! Non toccare mai più niente o ti distruggo tutto quello che hai!'", tags: ["aggressiva", "famiglia"] }
   ]
 };

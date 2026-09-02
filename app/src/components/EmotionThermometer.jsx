@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Settings, FileJson, Upload, Eye, Check, Trash2, Plus } from 'lucide-react';
 import { etLoadImages, etSaveImages, etStripImages } from '../lib/thermometerStorage';
+import { EMOTION_THERMOMETER_DEFAULT } from '../data/thermometerData';
 import FullscreenButton from './FullscreenButton';
 
 // Tinta di base per ogni emozione: al crescere dell'intensità il colore si
@@ -514,7 +515,22 @@ export default function EmotionThermometer({ data, onUpdate, onClose }) {
               </button>
             </div>
 
-            <div className="mt-8 flex justify-end pt-6 border-t-4 border-black">
+            <div className="mt-8 flex flex-wrap justify-between items-center gap-4 pt-6 border-t-4 border-black">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!confirm(`Vuoi ripristinare le parole e le immagini predefinite per "${activeEmotion.label}"?`)) return;
+                  const defaultEmo = EMOTION_THERMOMETER_DEFAULT.find(d => d.id === activeEmotion.id);
+                  if (defaultEmo) {
+                    const next = emotions.map(e => e.id === activeEmotion.id ? JSON.parse(JSON.stringify(defaultEmo)) : e);
+                    doUpdate(next);
+                  }
+                }}
+                className="text-xs font-bold text-gray-500 hover:text-red-600 underline flex items-center gap-1 transition-colors"
+                title="Ripristina livelli e immagini predefinite originali per questa emozione"
+              >
+                Ripristina livelli e immagini predefinite
+              </button>
               <button
                 onClick={() => setView('menu')}
                 className={`${neoButton} px-8 py-3 bg-[#FFD8B3] text-black hover:bg-[#ffcc99] text-lg`}

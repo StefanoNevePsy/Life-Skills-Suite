@@ -5,10 +5,13 @@ import {
   Plus, Trash2, RotateCcw, X, List, Upload, Download, Check, 
   Clock, ChevronRight, BookOpen, HeartHandshake, ZoomIn, ZoomOut, 
   Search, MapPin, Eye, EyeOff, RefreshCw, Save, Cloud, Loader2, 
-  AlertTriangle, ChevronDown, MessageSquare, QrCode, Lock, Unlock, LogIn,
+  AlertTriangle, ChevronDown, ChevronUp, MessageSquare, QrCode, Lock, Unlock, LogIn,
   FolderOpen, Edit, FileJson, BarChart2, Type, Smartphone, Share2, Ban, CheckSquare,
-  Maximize, Minimize, CheckCircle, XCircle, Minus
+  Maximize, Minimize, CheckCircle, XCircle, Minus, MessageCircle, Laptop, Copy, Sparkles
 } from 'lucide-react';
+
+import { initialScenarios } from './scenarios_data';
+import { generateTinyUrl, getStudentBaseUrl } from './lib/shortUrl';
 
 // --- FIREBASE IMPORTS ---
 import { initializeApp, getApps, getApp } from 'firebase/app';
@@ -28,7 +31,26 @@ import ScenarioManager from './components/ScenarioManager';
 import EmotionThermometer from './components/EmotionThermometer';
 import P2PModal from './components/P2PModal';
 import SettingsModal from './components/SettingsModal';
-import { exportSessionXLSX, exportWordcloudSVG } from './lib/exporters';
+import TeacherPinModal from './components/TeacherPinModal';
+import {
+  isPinProtectionEnabled,
+  isTeacherAuthenticated,
+  logoutTeacher
+} from './lib/security';
+import {
+  encodeFBConfig,
+  decodeFBConfig,
+  saveFBConfig,
+  isFirebaseConfigured
+} from './lib/firebaseConfig';
+import { exportSessionXLSX, exportSessionImage, exportWordcloudSVG, exportQASVG, exportPollSVG } from './lib/exporters';
+import { 
+  ensureCategorySets, 
+  getActiveItemsForCategory, 
+  setActiveCategorySet, 
+  getAllItemsForCategory,
+  CATEGORIES 
+} from './lib/sets';
 
 // =================================================================================
 // 1. CONFIGURAZIONE & DATI
@@ -44,10 +66,14 @@ let auth = null;
 let APP_ID = getAppId();
 
 try {
-  const app = getApps().length === 0 ? initializeApp(FIREBASE_CONFIG) : getApp();
-  db = getFirestore(app);
-  auth = getAuth(app);
-  console.log("🔥 Firebase connesso.");
+  if (FIREBASE_CONFIG && FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey.trim()) {
+    const app = getApps().length === 0 ? initializeApp(FIREBASE_CONFIG) : getApp();
+    db = getFirestore(app);
+    auth = getAuth(app);
+    console.log("🔥 Firebase connesso.");
+  } else {
+    console.log("ℹ️ Firebase non configurato: operatività in modalità locale.");
+  }
 } catch (e) {
   console.error("Errore inizializzazione Firebase:", e);
 }
@@ -72,6 +98,7 @@ const INITIAL_DB_DATA = {
   affectivity_sexuality: [
     { id: 1, text: "Siete in intimità. Il partner prova a fare qualcosa di nuovo senza chiedertelo.", tags: ["consenso"] }
   ],
+  effective_communication: initialScenarios.effective_communication || [],
   feedback_sets: [
     {
       id: "default_1",
@@ -91,7 +118,8 @@ const INITIAL_DB_DATA = {
       allowMultiple: false
     }
   ],
-  emotion_thermometer: EMOTION_THERMOMETER_DEFAULT
+  emotion_thermometer: EMOTION_THERMOMETER_DEFAULT,
+  scenario_sets: {}
 };
 
 // =================================================================================
@@ -626,10 +654,20 @@ const FeedbackModeratorView = ({ sessionCode, user }) => {
 };
 
 // VISTA INGRESSO STUDENTE
-const StudentEntryView = ({ onJoin }) => {
+const StudentEntryView = ({ onJoin, onTeacherUnlock, canUnlock = true }) => {
     const [code, setCode] = useState("");
     return (
-        <div className="min-h-screen bg-yellow-50 flex items-center justify-center p-6">
+        <div className="min-h-screen bg-yellow-50 flex flex-col items-center justify-center p-6 relative">
+            {canUnlock && onTeacherUnlock && (
+                <button
+                    type="button"
+                    onClick={onTeacherUnlock}
+                    className="absolute top-6 right-6 flex items-center gap-1.5 px-4 py-2 rounded-full bg-white/90 hover:bg-white text-xs font-black text-gray-700 hover:text-black border-2 border-black/10 shadow-sm transition-all"
+                    title="Accesso riservato al docente tramite PIN"
+                >
+                    <Lock size={14} className="text-amber-600" /> Area Docente
+                </button>
+            )}
             <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full text-center border-4 border-black">
                 <div className="bg-yellow-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"><LogIn size={40} className="text-yellow-600"/></div>
                 <h1 className="text-3xl font-black mb-2">Partecipa</h1>
@@ -651,6 +689,46 @@ const StudentEntryView = ({ onJoin }) => {
             </div>
         </div>
     );
+};
+
+// Livelli di dimensione font e densità griglia per le risposte Q&A
+const QA_FONT_SIZES = {
+  sm: {
+    label: 'Compatto',
+    grid: 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5',
+    cardPad: 'p-3',
+    headerSize: 'text-[11px]',
+    textSize: 'text-sm leading-snug',
+    detailsText: 'text-xs',
+    collapsedPad: 'py-2 px-3',
+  },
+  md: {
+    label: 'Medio',
+    grid: 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5',
+    cardPad: 'p-4',
+    headerSize: 'text-xs',
+    textSize: 'text-base leading-relaxed',
+    detailsText: 'text-xs',
+    collapsedPad: 'py-2.5 px-3.5',
+  },
+  lg: {
+    label: 'Grande',
+    grid: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4',
+    cardPad: 'p-6',
+    headerSize: 'text-xs',
+    textSize: 'text-xl leading-relaxed',
+    detailsText: 'text-sm',
+    collapsedPad: 'py-3 px-4',
+  },
+  xl: {
+    label: 'Molto grande',
+    grid: 'grid-cols-1 md:grid-cols-2 gap-4',
+    cardPad: 'p-6',
+    headerSize: 'text-sm',
+    textSize: 'text-2xl leading-relaxed',
+    detailsText: 'text-sm',
+    collapsedPad: 'py-3.5 px-5',
+  }
 };
 
 const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, onUpdatePolls, user }) => {
@@ -745,7 +823,55 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
     element.click();
   };
 
-  const [showNames, setShowNames] = useState(false);
+  const [showNames, setShowNames] = useState(true);
+  const [qaFontSize, setQaFontSize] = useState(() => {
+    try {
+      return localStorage.getItem('lss_qa_font_size') || 'md';
+    } catch {
+      return 'md';
+    }
+  });
+
+  const handleFontSizeChange = (lvl) => {
+    setQaFontSize(lvl);
+    try {
+      localStorage.setItem('lss_qa_font_size', lvl);
+    } catch {}
+  };
+
+  const [allCollapsed, setAllCollapsed] = useState(false);
+  const [collapsedOverrides, setCollapsedOverrides] = useState({});
+
+  // Stato e handler per shortUrl e condivisione Chromebook
+  const [shortUrl, setShortUrl] = useState(null);
+  const [tinyBusy, setTinyBusy] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const handleGenerateTinyUrl = async (targetUrl) => {
+    setTinyBusy(true);
+    const res = await generateTinyUrl(targetUrl);
+    if (res) setShortUrl(res);
+    setTinyBusy(false);
+  };
+
+  const isNoteCollapsed = (key) => {
+    if (collapsedOverrides[key] !== undefined) return collapsedOverrides[key];
+    return allCollapsed;
+  };
+
+  const toggleNoteCollapse = (key) => {
+    setCollapsedOverrides(prev => ({
+      ...prev,
+      [key]: !isNoteCollapsed(key)
+    }));
+  };
+
+  const toggleAllCollapse = () => {
+    const next = !allCollapsed;
+    setAllCollapsed(next);
+    setCollapsedOverrides({});
+  };
+
   const exportScreen = () => window.print();
 
   const handleManualAddWord = async (word) => {
@@ -898,7 +1024,8 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
     );
   }
 
-  const joinUrl = `${window.location.href.split('?')[0]}?session=${sessionCode}`;
+  const fbEncoded = encodeFBConfig(getFBConfig());
+  const joinUrl = `${window.location.href.split('?')[0]}?session=${sessionCode}${fbEncoded ? `&fb=${fbEncoded}` : ''}`;
   const modUrl = `${window.location.href.split('?')[0]}?mode=moderator&session=${sessionCode}`;
 
   return (
@@ -924,20 +1051,67 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
              <button onClick={() => setViewMode(viewMode === 'qr' ? 'responses' : 'qr')} className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-4 py-2 rounded-xl font-bold flex items-center gap-2 border-2 border-blue-200 transition-all">
                 {viewMode === 'qr' ? <><MessageSquare size={18}/> VEDI RISULTATI ({sessionData.responses.filter(r => r.status === 'visible' || (!r.status && r.visible !== false)).length})</> : <><QrCode size={18}/> MOSTRA QR</>}
              </button>
-             <button onClick={exportScreen} className="p-2 bg-gray-100 rounded-xl hover:bg-gray-200 border-2 border-gray-200 text-gray-600" title="Stampa/PDF"><Download size={20}/></button>
+             {/* Esportazione Immagine SVG per tutte le modalità */}
+             <button 
+               onClick={() => exportSessionImage(sessionData, sessionCode, showNames)} 
+               className="p-2 bg-purple-100 hover:bg-purple-200 border-2 border-purple-300 text-purple-700 font-black rounded-xl flex items-center gap-1 transition-all" 
+               title="Salva come immagine vettoriale SVG (tutti gli elementi dell'area di lavoro, zoomabile all'infinito)"
+             >
+                <Download size={18} />
+                <span style={{ fontSize: '13px', fontWeight: '900', lineHeight: '20px' }}>SVG</span>
+             </button>
              <button onClick={exportResponses} className="p-2 bg-gray-100 rounded-xl hover:bg-gray-200 border-2 border-gray-200 text-gray-600" title="Esporta TXT"><FileJson size={20}/></button>
              <button onClick={() => exportSessionXLSX(sessionData, sessionCode)} className="p-2 bg-green-100 rounded-xl hover:bg-green-200 border-2 border-green-200 text-green-600" title="Esporta XLSX">
                 <span style={{ fontSize: '14px', fontWeight: '900', lineHeight: '20px' }}>XLS</span>
              </button>
-             {sessionData.type === 'wordcloud' && (
-               <button onClick={() => exportWordcloudSVG(sessionCode)} className="p-2 bg-blue-100 rounded-xl hover:bg-blue-200 border-2 border-blue-200 text-blue-600" title="Esporta SVG Nuvola">
-                  <span style={{ fontSize: '14px', fontWeight: '900', lineHeight: '20px' }}>SVG</span>
-               </button>
-             )}
              {sessionData.type === 'qa' && (
-               <button onClick={() => setShowNames(!showNames)} className={`p-2 rounded-xl border-2 transition-all ${showNames ? 'bg-purple-100 hover:bg-purple-200 border-purple-300 text-purple-600' : 'bg-gray-100 hover:bg-gray-200 border-gray-200 text-gray-600'}`} title={showNames ? 'Nascondi nomi' : 'Mostra nomi'}>
-                  <span style={{ fontSize: '16px', lineHeight: '20px' }}>👤</span>
-               </button>
+                <>
+                  <div className="flex items-center bg-gray-100 rounded-xl border-2 border-gray-200 p-0.5" title="Regola dimensione testo (per far stare più cose a schermo)">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const lvls = ['sm', 'md', 'lg', 'xl'];
+                        const curIdx = lvls.indexOf(qaFontSize);
+                        if (curIdx > 0) setQaFontSize(lvls[curIdx - 1]);
+                      }}
+                      disabled={qaFontSize === 'sm'}
+                      className="px-2 py-1 font-black text-xs text-gray-700 hover:bg-gray-200 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                      title="Riduci testo (far stare più note a schermo)"
+                    >
+                      A-
+                    </button>
+                    <span className="px-1.5 font-bold text-[11px] text-gray-600 uppercase select-none">
+                      {QA_FONT_SIZES[qaFontSize]?.label || 'Testo'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const lvls = ['sm', 'md', 'lg', 'xl'];
+                        const curIdx = lvls.indexOf(qaFontSize);
+                        if (curIdx < lvls.length - 1) setQaFontSize(lvls[curIdx + 1]);
+                      }}
+                      disabled={qaFontSize === 'xl'}
+                      className="px-2 py-1 font-black text-xs text-gray-700 hover:bg-gray-200 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                      title="Ingrandisci testo"
+                    >
+                      A+
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={toggleAllCollapse}
+                    className={`p-2 rounded-xl border-2 transition-all flex items-center gap-1.5 ${allCollapsed ? 'bg-amber-100 hover:bg-amber-200 border-amber-300 text-amber-800' : 'bg-gray-100 hover:bg-gray-200 border-gray-200 text-gray-600'}`}
+                    title={allCollapsed ? "Espandi tutte le note (mostra risposte)" : "Collassa tutte (mostra solo nomi)"}
+                  >
+                    {allCollapsed ? <ChevronDown size={18}/> : <ChevronUp size={18}/>}
+                    <span className="text-xs font-bold hidden md:inline">
+                      {allCollapsed ? "Espandi tutte" : "Solo nomi"}
+                    </span>
+                  </button>
+                  <button onClick={() => setShowNames(!showNames)} className={`p-2 rounded-xl border-2 transition-all ${showNames ? 'bg-purple-100 hover:bg-purple-200 border-purple-300 text-purple-600' : 'bg-gray-100 hover:bg-gray-200 border-gray-200 text-gray-600'}`} title={showNames ? 'Nascondi nomi' : 'Mostra nomi'}>
+                     <span style={{ fontSize: '16px', lineHeight: '20px' }}>👤</span>
+                  </button>
+                </>
              )}
              <button onClick={() => setSessionCode(null)} className="p-2 bg-red-100 rounded-xl hover:bg-red-200 border-2 border-red-200 text-red-600"><X size={20}/></button>
          </div>
@@ -952,11 +1126,93 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
       )}
 
       {viewMode === 'qr' && (
-          <div className="flex-1 flex flex-col items-center justify-center animate-in fade-in zoom-in duration-300">
-             <div className="bg-white p-6 rounded-3xl shadow-2xl border-4 border-black mb-8 transform hover:scale-105 transition-transform">
-                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(joinUrl)}`} alt="QR" className="w-64 h-64 md:w-96 md:h-96 object-contain"/>
+          <div className="flex-1 flex flex-col items-center justify-center animate-in fade-in zoom-in duration-300 py-4 max-w-5xl mx-auto w-full">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full items-stretch">
+                
+                {/* COLONNA 1: SMARTPHONE & TABLET (QR CODE) */}
+                <div className="bg-white p-6 md:p-8 rounded-3xl shadow-xl border-4 border-black flex flex-col items-center justify-center text-center">
+                   <div className="inline-flex items-center gap-2 bg-blue-100 text-blue-800 text-xs font-black uppercase px-3.5 py-1.5 rounded-full mb-4">
+                     <Smartphone size={15} /> Da Smartphone / Tablet
+                   </div>
+                   <div className="p-3 bg-white rounded-2xl border-2 border-gray-200 shadow-inner mb-3">
+                     <img 
+                       src={`https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(joinUrl)}`} 
+                       alt="QR Code per Smartphone" 
+                       className="w-44 h-44 md:w-56 md:h-56 object-contain"
+                     />
+                   </div>
+                   <p className="text-xs font-bold text-gray-500">Inquadra con la fotocamera per partecipare</p>
+                </div>
+
+                {/* COLONNA 2: CHROMEBOOK / PC / LIM (CODICE PIN & LINK) */}
+                <div className="bg-white p-6 md:p-8 rounded-3xl shadow-xl border-4 border-black flex flex-col justify-between text-left relative overflow-hidden">
+                   <div>
+                     <div className="inline-flex items-center gap-2 bg-amber-100 text-amber-900 text-xs font-black uppercase px-3.5 py-1.5 rounded-full mb-4">
+                       <Laptop size={15} /> Da Chromebook o PC
+                     </div>
+
+                     <h3 className="text-xl font-black text-gray-900 mb-2">Come collegarsi:</h3>
+                     <ol className="space-y-4 my-4">
+                       <li className="flex items-start gap-2.5">
+                         <span className="w-6 h-6 rounded-full bg-black text-white font-black text-xs flex items-center justify-center shrink-0 mt-0.5">1</span>
+                         <div className="text-sm font-bold text-gray-700">
+                           Apri il browser su:
+                           <div className="mt-1 font-mono font-black text-sm md:text-base text-blue-600 bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-200 select-all inline-block break-all">
+                             {shortUrl || getStudentBaseUrl() || window.location.host}
+                           </div>
+                         </div>
+                       </li>
+
+                       <li className="flex items-start gap-2.5">
+                         <span className="w-6 h-6 rounded-full bg-black text-white font-black text-xs flex items-center justify-center shrink-0 mt-0.5">2</span>
+                         <div className="text-sm font-bold text-gray-700">
+                           Inserisci il codice PIN:
+                           <div className="mt-1.5 text-4xl md:text-5xl font-mono font-black tracking-widest text-black bg-yellow-300 px-5 py-2 rounded-2xl border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] inline-block select-all">
+                             {sessionCode}
+                           </div>
+                         </div>
+                       </li>
+                     </ol>
+                   </div>
+
+                   {/* Pulsanti rapidi per il docente */}
+                   <div className="pt-4 border-t-2 border-gray-100 flex flex-wrap gap-2">
+                     <button
+                       type="button"
+                       onClick={() => {
+                         navigator.clipboard.writeText(joinUrl);
+                         setCopiedLink(true);
+                         setTimeout(() => setCopiedLink(false), 2500);
+                       }}
+                       className={`px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 border-2 transition-all ${
+                         copiedLink 
+                           ? 'bg-green-100 text-green-700 border-green-300' 
+                           : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-200'
+                       }`}
+                       title="Copia l'indirizzo diretto da incollare su Google Classroom o Teams"
+                     >
+                       {copiedLink ? <Check size={14}/> : <Copy size={14}/>}
+                       {copiedLink ? 'Link copiato!' : 'Copia link diretto (per Classroom)'}
+                     </button>
+
+                     {!shortUrl && (
+                       <button
+                         type="button"
+                         onClick={() => handleGenerateTinyUrl(joinUrl)}
+                         disabled={tinyBusy}
+                         className="px-3 py-2 rounded-xl font-bold text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 border-2 border-purple-200 flex items-center gap-1.5 transition-all disabled:opacity-50"
+                         title="Genera un link breve tipo tinyurl.com/... facile da scrivere per gli studenti"
+                       >
+                         <Sparkles size={14} />
+                         {tinyBusy ? 'Generazione...' : 'Crea link TinyURL'}
+                       </button>
+                     )}
+                   </div>
+                </div>
+
              </div>
-             {sessionData.type === 'poll' && <div className="mt-8 text-2xl font-bold text-green-700">{sessionData.question}</div>}
+
+             {sessionData.type === 'poll' && <div className="mt-8 text-2xl font-black text-center text-green-700 bg-green-50 px-6 py-3 rounded-2xl border-2 border-green-200">{sessionData.question}</div>}
              {sessionData.questions && sessionData.questions.length > 0 && (
                 <div className="w-full max-w-5xl px-4 text-center mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
                     {sessionData.questions.map((q) => (
@@ -978,48 +1234,95 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
                     {sessionData.responses.filter(r => r.status === 'visible' || (!r.status && r.visible !== false)).length === 0 ? (
                         <div className="absolute inset-0 flex items-center justify-center text-yellow-300 font-black text-4xl uppercase opacity-40">In attesa...</div>
                     ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className={`grid ${QA_FONT_SIZES[qaFontSize]?.grid || QA_FONT_SIZES.md.grid}`}>
                             {sessionData.responses.slice().reverse().map((res, idx) => {
                                 const isVisible = res.status === 'visible' || (!res.status && res.visible !== false);
                                 if (!isVisible) return null;
+                                const noteKey = res.timestamp ? `${res.timestamp}_${idx}` : `note_${idx}`;
+                                const isCollapsed = isNoteCollapsed(noteKey);
+                                const fontCfg = QA_FONT_SIZES[qaFontSize] || QA_FONT_SIZES.md;
+                                const authorName = showNames && res.studentName && res.studentName.trim()
+                                  ? res.studentName.trim()
+                                  : (showNames ? 'Anonimo' : `Risposta #${sessionData.responses.length - idx}`);
+
+                                if (isCollapsed) {
+                                  return (
+                                    <div
+                                      key={noteKey}
+                                      onClick={() => toggleNoteCollapse(noteKey)}
+                                      className={`bg-white rounded-xl shadow-sm border-2 border-gray-200 hover:border-black cursor-pointer hover:shadow-md transition-all flex items-center justify-between ${fontCfg.collapsedPad}`}
+                                      title="Clicca per espandere e leggere il contenuto"
+                                    >
+                                      <div className="flex items-center gap-2 min-w-0 pr-2">
+                                        <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-xs flex-shrink-0">
+                                          👤
+                                        </span>
+                                        <span className="font-bold text-gray-800 truncate text-sm">
+                                          {authorName}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-1 text-gray-400 hover:text-black flex-shrink-0">
+                                        <ChevronDown size={16} />
+                                      </div>
+                                    </div>
+                                  );
+                                }
+
                                 return (
-                                    <div key={idx} className="bg-white p-6 rounded-xl shadow-md border-b-4 border-gray-200 hover:-translate-y-1 transition-transform">
-                                        {showNames && res.studentName && (
-                                          <p style={{ fontSize: '11px', color: '#9ca3af', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px', paddingBottom: '6px', borderBottom: '1px solid #f3f4f6' }}>
-                                            {res.studentName}
-                                          </p>
-                                        )}
-                                        {Array.isArray(res.text) ? (
-                                          <div>
-                                            {/* In primo piano solo le risposte: le domande restano a richiesta. */}
-                                            {res.text.map((qaItem, qaIdx) => {
-                                              const nlPos = qaItem.indexOf('\n');
-                                              const answerPart = nlPos >= 0 ? qaItem.substring(nlPos + 1) : qaItem;
-                                              return (
-                                                <div key={qaIdx}>
-                                                  {qaIdx > 0 && <hr style={{ margin: '12px 0', borderColor: '#e5e7eb' }} />}
-                                                  <p className="font-bold text-gray-800 text-lg leading-relaxed whitespace-pre-wrap">{answerPart}</p>
-                                                </div>
-                                              );
-                                            })}
-                                            {res.text.some((qaItem) => qaItem.indexOf('\n') >= 0) && (
-                                              <details style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px dashed #d1d5db' }}>
-                                                <summary style={{ fontSize: '13px', color: '#9ca3af', cursor: 'pointer', fontWeight: 'bold' }}>Mostra domande</summary>
-                                                <div style={{ marginTop: '8px' }}>
-                                                  {res.text.map((qaItem, qaIdx) => {
-                                                    const nlPos = qaItem.indexOf('\n');
-                                                    const questionPart = nlPos >= 0 ? qaItem.substring(0, nlPos).replace(/:$/, '') : '';
-                                                    return questionPart ? (
-                                                      <p key={qaIdx} style={{ fontSize: '13px', color: '#6b7280', fontStyle: 'italic', marginBottom: '4px' }}>• {questionPart}</p>
-                                                    ) : null;
-                                                  })}
-                                                </div>
-                                              </details>
-                                            )}
+                                    <div key={noteKey} className={`bg-white rounded-xl shadow-md border-b-4 border-gray-200 hover:-translate-y-0.5 transition-all flex flex-col justify-between ${fontCfg.cardPad}`}>
+                                        <div>
+                                          <div className="flex items-center justify-between pb-2 mb-3 border-b border-gray-100">
+                                            <div className="flex items-center gap-2 min-w-0">
+                                              <span className="text-xs">👤</span>
+                                              <span className={`font-bold text-gray-700 uppercase tracking-wider truncate ${fontCfg.headerSize}`}>
+                                                {authorName}
+                                              </span>
+                                            </div>
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                toggleNoteCollapse(noteKey);
+                                              }}
+                                              className="p-1 text-gray-400 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors ml-2 flex-shrink-0"
+                                              title="Collassa (mostra solo nome)"
+                                            >
+                                              <ChevronUp size={16} />
+                                            </button>
                                           </div>
-                                        ) : (
-                                          <p className="font-bold text-gray-800 text-xl leading-relaxed whitespace-pre-wrap">{res.text}</p>
-                                        )}
+
+                                          {Array.isArray(res.text) ? (
+                                            <div>
+                                              {/* In primo piano solo le risposte: le domande restano a richiesta. */}
+                                              {res.text.map((qaItem, qaIdx) => {
+                                                const nlPos = qaItem.indexOf('\n');
+                                                const answerPart = nlPos >= 0 ? qaItem.substring(nlPos + 1) : qaItem;
+                                                return (
+                                                  <div key={qaIdx}>
+                                                    {qaIdx > 0 && <hr style={{ margin: '10px 0', borderColor: '#e5e7eb' }} />}
+                                                    <p className={`font-bold text-gray-800 whitespace-pre-wrap ${fontCfg.textSize}`}>{answerPart}</p>
+                                                  </div>
+                                                );
+                                              })}
+                                              {res.text.some((qaItem) => qaItem.indexOf('\n') >= 0) && (
+                                                <details style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px dashed #d1d5db' }}>
+                                                  <summary className={`text-gray-400 cursor-pointer font-bold ${fontCfg.detailsText}`}>Mostra domande</summary>
+                                                  <div style={{ marginTop: '6px' }}>
+                                                    {res.text.map((qaItem, qaIdx) => {
+                                                      const nlPos = qaItem.indexOf('\n');
+                                                      const questionPart = nlPos >= 0 ? qaItem.substring(0, nlPos).replace(/:$/, '') : '';
+                                                      return questionPart ? (
+                                                        <p key={qaIdx} className={`text-gray-500 italic ${fontCfg.detailsText}`} style={{ marginBottom: '3px' }}>• {questionPart}</p>
+                                                      ) : null;
+                                                    })}
+                                                  </div>
+                                                </details>
+                                              )}
+                                            </div>
+                                          ) : (
+                                            <p className={`font-bold text-gray-800 whitespace-pre-wrap ${fontCfg.textSize}`}>{res.text}</p>
+                                          )}
+                                        </div>
                                     </div>
                                 );
                             })}
@@ -1249,15 +1552,52 @@ const FeedbackStudentView = ({ sessionCode, onExit, user }) => {
 };
 
 // --- STANDARD ACTIVITY VIEW ---
-const StandardActivityView = ({ view, currentScenario, generateScenario, theme }) => (
+const StandardActivityView = ({ view, currentScenario, generateScenario, theme, data, onFullUpdate, onOpenManager }) => (
   <main className="max-w-4xl mx-auto w-full flex-1 flex flex-col">
-    <h2 className={`text-center text-3xl font-black uppercase tracking-tight mb-8 ${theme.accent} drop-shadow-sm`}>
+    <h2 className={`text-center text-3xl font-black uppercase tracking-tight mb-6 ${theme.accent} drop-shadow-sm`}>
       {view === 'emotions' && 'Gestione Emozioni'}
       {view === 'emotion_narratives' && 'Narrazione Emotiva'}
       {view === 'affectivity_sexuality' && 'Affettività e Sessualità'}
+      {view === 'effective_communication' && 'Comunicazione Efficace'}
       {view === 'decisions_cold' && 'Decisioni a Freddo'}
       {view === 'decisions_hot' && 'Decisioni a Caldo'}
     </h2>
+
+    {CATEGORIES.includes(view) && data && (() => {
+      const catData = ensureCategorySets(view, data);
+      const totalAll = getAllItemsForCategory(catData.sets).length;
+      return (
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6 bg-white/80 backdrop-blur-sm p-3 px-5 rounded-2xl border-2 border-black/10 shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-black uppercase text-gray-500 tracking-wider">Set Attivo:</span>
+            <select
+              value={catData.activeSetId}
+              onChange={(e) => {
+                const updated = setActiveCategorySet(view, data, e.target.value);
+                onFullUpdate(updated);
+              }}
+              className="bg-white border-2 border-black/20 rounded-xl px-3 py-1 font-bold text-sm text-gray-800 outline-none hover:border-black cursor-pointer shadow-sm transition-all"
+            >
+              <option value="all">⭐ Tutti gli stimoli ({totalAll} stimoli)</option>
+              {catData.sets.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} ({s.items?.length || 0} stimoli)
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            onClick={onOpenManager}
+            className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-gray-700 hover:text-black bg-white hover:bg-gray-100 px-3 py-1.5 rounded-xl border border-gray-300 shadow-sm transition-all"
+            title="Gestisci i set e gli stimoli"
+          >
+            <Settings size={14} /> Gestisci Set &amp; Stimoli
+          </button>
+        </div>
+      );
+    })()}
+
     <div className="flex-1 flex flex-col relative">
       <div className="bg-white rounded-[2.5rem] p-8 md:p-12 shadow-[16px_16px_0px_0px_rgba(0,0,0,0.05)] border-8 border-white flex flex-col items-center justify-center min-h-[500px] relative overflow-hidden transition-all">
         {!currentScenario ? (
@@ -1288,6 +1628,11 @@ const StandardActivityView = ({ view, currentScenario, generateScenario, theme }
                       <li className="bg-white/80 p-3 rounded-xl text-center">Quando è successo?</li>
                       <li className="bg-white/80 p-3 rounded-xl text-center">Cosa l'ha innescata?</li>
                       <li className="bg-white/80 p-3 rounded-xl text-center">Come hai reagito?</li>
+                  </>)}
+                  {view === 'effective_communication' && (<>
+                      <li className="bg-white/80 p-3 rounded-xl text-center">Che stile è? (Passivo, Aggressivo, Assertivo)</li>
+                      <li className="bg-white/80 p-3 rounded-xl text-center">Come si sente chi parla e chi ascolta?</li>
+                      <li className="bg-white/80 p-3 rounded-xl text-center">Come riformularlo in modo assertivo?</li>
                   </>)}
                   {(view === 'decisions_cold' || view === 'decisions_hot') && (<>
                       <li className="bg-white/80 p-3 rounded-xl text-center">Cosa fai subito?</li>
@@ -1359,7 +1704,11 @@ export default function App() {
   // Stato per la modalità Studente (Join) e Moderatore (Mod)
   const [studentSessionCode, setStudentSessionCode] = useState(null);
   const [moderatorSessionCode, setModeratorSessionCode] = useState(null);
-  const [isStudentEntry, setIsStudentEntry] = useState(false); // NUOVO STATO
+  const [isStudentEntry, setIsStudentEntry] = useState(false);
+
+  // Stato sicurezza e autenticazione docente
+  const [isTeacherPinModalOpen, setIsTeacherPinModalOpen] = useState(false);
+  const [teacherAuth, setTeacherAuth] = useState(() => isTeacherAuthenticated());
 
   // Modali globali
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -1371,6 +1720,15 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     const sessionParam = params.get('session');
     const modeParam = params.get('mode');
+
+    // Auto-ricezione configurazione Firebase da link condiviso (?fb=...)
+    const fbParam = params.get('fb');
+    if (fbParam) {
+      const decoded = decodeFBConfig(fbParam);
+      if (decoded && (!FIREBASE_CONFIG || !FIREBASE_CONFIG.apiKey)) {
+        saveFBConfig(decoded);
+      }
+    }
 
     // ?ns= trasporta il namespace nel link di condivisione, così chi entra
     // da QR finisce sullo stesso database del docente.
@@ -1390,6 +1748,12 @@ export default function App() {
         } else {
             setStudentSessionCode(sessionParam);
         }
+    } else if (params.get('student') === '1' || params.get('join') === '1' || window.location.hash === '#student') {
+        setIsStudentEntry(true);
+    } else if (isPinProtectionEnabled() && !isTeacherAuthenticated()) {
+        // Protezione attiva e dispositivo non autenticato come docente:
+        // apre di default la vista studente anziché la Dashboard!
+        setIsStudentEntry(true);
     }
 
     const initApp = async () => {
@@ -1423,7 +1787,23 @@ export default function App() {
 
   // --- MODES RENDER ---
   if (isStudentEntry) {
-      return <StudentEntryView onJoin={(code) => { setStudentSessionCode(code); setIsStudentEntry(false); }} />;
+      return (
+        <>
+          <StudentEntryView 
+            onJoin={(code) => { setStudentSessionCode(code); setIsStudentEntry(false); }} 
+            onTeacherUnlock={teacherAuth ? () => setIsStudentEntry(false) : () => setIsTeacherPinModalOpen(true)}
+            canUnlock={true}
+          />
+          <TeacherPinModal 
+            isOpen={isTeacherPinModalOpen} 
+            onClose={() => setIsTeacherPinModalOpen(false)}
+            onSuccess={() => {
+              setTeacherAuth(true);
+              setIsStudentEntry(false);
+            }}
+          />
+        </>
+      );
   }
 
   if (studentSessionCode) {
@@ -1458,6 +1838,7 @@ export default function App() {
       case 'decisions_hot': return { bg: 'bg-[#FFF5EE]', accent: 'text-orange-600', border: 'border-orange-500', button: 'bg-orange-500 hover:bg-orange-400 border-orange-700', light: 'bg-orange-100', cardBorder: 'border-orange-200' };
       case 'emotion_narratives': return { bg: 'bg-[#F3E8FF]', accent: 'text-purple-600', border: 'border-purple-500', button: 'bg-purple-500 hover:bg-purple-400 border-purple-700', light: 'bg-purple-100', cardBorder: 'border-purple-200' };
       case 'affectivity_sexuality': return { bg: 'bg-[#FFE4E6]', accent: 'text-rose-600', border: 'border-rose-500', button: 'bg-rose-500 hover:bg-rose-400 border-rose-700', light: 'bg-rose-100', cardBorder: 'border-rose-200' };
+      case 'effective_communication': return { bg: 'bg-[#F0FDF9]', accent: 'text-teal-600', border: 'border-teal-500', button: 'bg-teal-600 hover:bg-teal-500 border-teal-800', light: 'bg-teal-100', cardBorder: 'border-teal-200' };
       default: return { bg: 'bg-gray-50' };
     }
   };
@@ -1471,10 +1852,12 @@ export default function App() {
   };
 
   const generateScenario = () => {
-    const list = data[view];
-    if (!list) return;
+    const list = CATEGORIES.includes(view)
+      ? getActiveItemsForCategory(view, data)
+      : data[view];
+    if (!list || list.length === 0) return alert("Nessuno stimolo disponibile in questo set.");
     const activeItems = list.filter(item => !item.hidden);
-    if (activeItems.length === 0) return alert("Tutti gli scenari nascosti.");
+    if (activeItems.length === 0) return alert("Tutti gli stimoli di questo set sono nascosti.");
     const shownIds = new Set(history.map(h => h.id));
     const available = activeItems.filter(item => !shownIds.has(item.id));
     let selected = available.length > 0 ? available[Math.floor(Math.random() * available.length)] : activeItems[Math.floor(Math.random() * activeItems.length)];
@@ -1483,7 +1866,10 @@ export default function App() {
   };
 
   const handleSelectEmotion = (text) => {
-    const selected = data[view].find(s => s.text === text);
+    const list = CATEGORIES.includes(view)
+      ? getActiveItemsForCategory(view, data)
+      : data[view];
+    const selected = (list || []).find(s => s.text === text);
     if (selected) { setCurrentScenario(selected); setHistory(prev => [selected, ...prev]); }
   };
 
@@ -1524,13 +1910,27 @@ export default function App() {
               </div>
               <button 
                 onClick={() => { setIsStudentEntry(true); }} 
-                className="flex items-center gap-1 text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full hover:bg-blue-100"
+                className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-blue-700 bg-blue-100 hover:bg-blue-200 border-2 border-blue-300 px-4 py-1.5 rounded-full shadow-sm hover:scale-105 transition-all"
+                title="Accedi come studente digitando il codice PIN a 4 lettere"
               >
-                  <LogIn size={14}/> Studente: Partecipa
+                  <LogIn size={15}/> 💻 Studente: Partecipa con PIN
               </button>
               
               <div className="absolute top-4 right-4 flex gap-2">
                  <FullscreenButton className=""/>
+                 {isPinProtectionEnabled() && (
+                   <button 
+                     onClick={() => {
+                       logoutTeacher();
+                       setTeacherAuth(false);
+                       setIsStudentEntry(true);
+                     }} 
+                     className="p-2 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-full transition-colors flex items-center justify-center shadow-sm" 
+                     title="Blocca sessione docente (richiederà il PIN)"
+                   >
+                     <Lock size={16}/>
+                   </button>
+                 )}
                  <button onClick={() => setIsSettingsOpen(true)} className="p-2 bg-gray-200 rounded-full hover:bg-gray-300 transition-colors" title="Impostazioni"><Settings size={16}/></button>
                  <button onClick={() => setIsP2POpen(true)} className="p-2 bg-gray-200 rounded-full hover:bg-gray-300 transition-colors" title="Sincronizzazione P2P"><Smartphone size={16}/></button>
                  {/* GLOBAL BACKUP BUTTONS */}
@@ -1562,6 +1962,7 @@ export default function App() {
           <Card title="Gestione Emozioni" subtitle="Identificazione" icon={Heart} color="bg-pink-200" description="Scenari per identificare e verbalizzare il vissuto emotivo." onClick={() => handleViewChange('emotions')} />
           <Card title="Narrazione Emotiva" subtitle="Storytelling" icon={BookOpen} color="bg-purple-200" description="Estrai un'emozione e racconta un episodio personale." onClick={() => handleViewChange('emotion_narratives')} />
           <Card title="Affettività e Sessualità" subtitle="Relazioni" icon={HeartHandshake} color="bg-rose-200" description="Dinamiche di coppia, consenso, confini e identità." onClick={() => handleViewChange('affectivity_sexuality')} />
+          <Card title="Comunicazione Efficace" subtitle="Stili Relazionali" icon={MessageCircle} color="bg-teal-200" description="Riconosci e sperimenta stili di comunicazione passiva, aggressiva e assertiva." onClick={() => handleViewChange('effective_communication')} />
           <Card title="Decisioni a Freddo" subtitle="Razionalità" icon={Brain} color="bg-blue-200" description="Scelte complesse e pianificazione." onClick={() => handleViewChange('decisions_cold')} />
           <Card title="Decisioni a Caldo" subtitle="Impulsività" icon={Thermometer} color="bg-orange-200" description="Gestione del rischio e reazioni immediate." onClick={() => handleViewChange('decisions_hot')} />
           <Card title="Feedback & Sondaggi" subtitle="Interattivo" icon={MessageSquare} color="bg-yellow-200" description="Q&A, Brainstorming e Sondaggi anonimi in tempo reale." onClick={() => handleViewChange('feedback_session')} />
@@ -1569,6 +1970,14 @@ export default function App() {
         </main>
 
         <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} appId={APP_ID} />
+        <TeacherPinModal 
+          isOpen={isTeacherPinModalOpen} 
+          onClose={() => setIsTeacherPinModalOpen(false)}
+          onSuccess={() => {
+            setTeacherAuth(true);
+            setIsStudentEntry(false);
+          }}
+        />
         <P2PModal isOpen={isP2POpen} onClose={() => setIsP2POpen(false)} data={data} onUpdate={handleFullUpdate} />
       </div>
     );
@@ -1616,7 +2025,15 @@ export default function App() {
         </div>
       </div>
       
-      <StandardActivityView view={view} currentScenario={currentScenario} generateScenario={generateScenario} theme={getTheme()} />
+      <StandardActivityView 
+        view={view} 
+        currentScenario={currentScenario} 
+        generateScenario={generateScenario} 
+        theme={getTheme()} 
+        data={data} 
+        onFullUpdate={handleFullUpdate} 
+        onOpenManager={() => setIsManagerOpen(true)} 
+      />
       
       <HistoryDrawer isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} history={history} theme={getTheme()} />
       <EmotionWheelModal 
@@ -1627,10 +2044,10 @@ export default function App() {
         isMappingMode={isMappingMode} 
         onMapCoordinate={handleMapCoordinate} 
         onNextEmotion={generateScenario} 
-        allScenarios={data[view]}
+        allScenarios={CATEGORIES.includes(view) ? getActiveItemsForCategory(view, data) : data[view]}
         onSelectEmotion={handleSelectEmotion} 
       />
-      {isManagerOpen && (<ScenarioManager scenarios={data[view]} type={view} fullData={data} onFullUpdate={handleFullUpdate} mappingMode={isMappingMode} setMappingMode={setIsMappingMode} onClose={() => setIsManagerOpen(false)} />)}
+      {isManagerOpen && (<ScenarioManager scenarios={CATEGORIES.includes(view) ? getActiveItemsForCategory(view, data) : data[view]} type={view} fullData={data} onFullUpdate={handleFullUpdate} mappingMode={isMappingMode} setMappingMode={setIsMappingMode} onClose={() => setIsManagerOpen(false)} />)}
       
       <style>{`@keyframes fadeIn { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } } @keyframes ping-slow { 0% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; } 100% { transform: translate(-50%, -50%) scale(2); opacity: 0; } } .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; } .animate-ping-slow { animation: ping-slow 2s cubic-bezier(0, 0, 0.2, 1) infinite; } .custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-track { background: transparent; } .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(0,0,0,0.1); border-radius: 20px; }`}</style>
     </div>

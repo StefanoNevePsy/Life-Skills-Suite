@@ -52,7 +52,9 @@ export async function etSaveImages(emotions) {
   }
 }
 
-/** Reidrata le emozioni con le immagini salvate localmente. */
+import { EMOTION_THERMOMETER_DEFAULT } from '../data/thermometerData';
+
+/** Reidrata le emozioni con le immagini salvate localmente o predefinite. */
 export async function etLoadImages(emotions) {
   try {
     const db = await openDB();
@@ -75,23 +77,35 @@ export async function etLoadImages(emotions) {
     const images = await Promise.all(requests);
     db.close();
 
-    return emotions.map((emo) => ({
-      ...emo,
-      levels: emo.levels.map((level, i) => {
-        const found = images.find((x) => x.emoId === emo.id && x.idx === i);
-        return { ...level, image: found && found.img ? found.img : level.image || null };
-      }),
-    }));
+    return emotions.map((emo) => {
+      const defaultEmo = EMOTION_THERMOMETER_DEFAULT.find((d) => d.id === emo.id);
+      return {
+        ...emo,
+        levels: emo.levels.map((level, i) => {
+          const found = images.find((x) => x.emoId === emo.id && x.idx === i);
+          const defaultLevel = defaultEmo && defaultEmo.levels[i];
+          const defaultImg = defaultLevel ? defaultLevel.image : null;
+          // Priorità: immagine utente in IDB > immagine livello > immagine predefinita
+          const resolvedImg = (found && found.img) || level.image || defaultImg || null;
+          return { ...level, image: resolvedImg };
+        }),
+      };
+    });
   } catch (e) {
     console.error('ET IDB load error', e);
     return emotions;
   }
 }
 
-/** Versione senza immagini, adatta a essere salvata su Firestore. */
+/** Versione leggera per Firestore: rimuove solo i pesanti data:image base64 (>50KB), preservando i path statici. */
 export function etStripImages(emotions) {
   return emotions.map((emo) => ({
     ...emo,
-    levels: emo.levels.map((level) => ({ ...level, image: null })),
+    levels: emo.levels.map((level) => {
+      if (level.image && level.image.startsWith('data:')) {
+        return { ...level, image: null };
+      }
+      return level;
+    }),
   }));
 }
