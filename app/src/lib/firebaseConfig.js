@@ -72,20 +72,46 @@ export function encodeFBConfig(c) {
   }
 }
 
-/** Accetta sia la forma base64 sia il JSON grezzo. Restituisce null se non valida. */
+/** Accetta base64, JSON valido o frammenti JavaScript copiati da Firebase Console. Restituisce null se non valida. */
 export function decodeFBConfig(s) {
   if (!s || typeof s !== 'string') return null;
+  const str = s.trim();
+
+  // 1. Prova decodifica Base64
   try {
-    const j = JSON.parse(decodeURIComponent(escape(atob(s.trim()))));
-    return j && j.apiKey ? j : null;
-  } catch {
-    try {
-      const j = JSON.parse(s.trim());
-      return j && j.apiKey ? j : null;
-    } catch {
-      return null;
+    const j = JSON.parse(decodeURIComponent(escape(atob(str))));
+    if (j && j.apiKey) return j;
+  } catch {}
+
+  // 2. Prova JSON standard
+  try {
+    const j = JSON.parse(str);
+    if (j && j.apiKey) return j;
+  } catch {}
+
+  // 3. Fallback tollerante: estrazione via Regex per snippet JS (con o senza virgolette, const, punti e virgola)
+  try {
+    const extract = (field) => {
+      const regex = new RegExp(`['"]?${field}['"]?\\s*:\\s*['"]([^'"]+)['"]`, 'i');
+      const m = str.match(regex);
+      return m ? m[1].trim() : '';
+    };
+
+    const apiKey = extract('apiKey');
+    const projectId = extract('projectId');
+    if (apiKey && projectId) {
+      return {
+        apiKey,
+        authDomain: extract('authDomain') || `${projectId}.firebaseapp.com`,
+        projectId,
+        storageBucket: extract('storageBucket') || `${projectId}.firebasestorage.app`,
+        messagingSenderId: extract('messagingSenderId'),
+        appId: extract('appId'),
+      };
     }
-  }
+  } catch {}
+
+  return null;
 }
 
 // --- Nome utente -----------------------------------------------------------
