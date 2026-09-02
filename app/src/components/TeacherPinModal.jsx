@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Lock, Unlock, Eye, EyeOff, X, ArrowLeft, ShieldCheck } from 'lucide-react';
 import { verifyTeacherPin, loginTeacher } from '../lib/security';
 
-export default function TeacherPinModal({ isOpen, onClose, onSuccess }) {
+export default function TeacherPinModal({ isOpen, onClose, onSuccess, dbData }) {
   const [pin, setPin] = useState('');
   const [showPin, setShowPin] = useState(false);
   const [remember, setRemember] = useState(true);
@@ -22,7 +22,7 @@ export default function TeacherPinModal({ isOpen, onClose, onSuccess }) {
     setError('');
 
     try {
-      const isValid = await verifyTeacherPin(pin);
+      const isValid = await verifyTeacherPin(pin, dbData);
       if (isValid) {
         loginTeacher(remember);
         setPin('');

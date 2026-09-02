@@ -50,17 +50,22 @@ const PRESET_MODELS = [
   { id: 'gemini-1.5-flash', label: 'gemini-1.5-flash (Standard)' },
 ];
 
-export default function SettingsModal({ isOpen, onClose, appId }) {
+export default function SettingsModal({ isOpen, onClose, appId, data, onUpdate }) {
   const usernameRef = useRef(null);
   const configRef = useRef(null);
 
-  // Stato Sicurezza PIN Docente
-  const [pinEnabled, setPinEnabled] = useState(isPinProtectionEnabled());
+  // Stato Sicurezza PIN Docente (sincronizzato sia con Firebase che in locale)
+  const [pinEnabled, setPinEnabled] = useState(() => isPinProtectionEnabled(data));
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [showNewPin, setShowNewPin] = useState(false);
   const [pinStatus, setPinStatus] = useState(null);
   const [showChangePinForm, setShowChangePinForm] = useState(false);
+
+  // Aggiorna lo stato se cambiano i dati da Firebase
+  React.useEffect(() => {
+    setPinEnabled(isPinProtectionEnabled(data));
+  }, [data]);
 
   // Stato IA (Google Gemini)
   const [aiKey, setAiKeyState] = useState(getAIKey());
@@ -89,23 +94,23 @@ export default function SettingsModal({ isOpen, onClose, appId }) {
       setPinStatus({ type: 'error', text: 'I due PIN non coincidono.' });
       return;
     }
-    await setTeacherPin(newPin.trim());
+    await setTeacherPin(newPin.trim(), onUpdate, data);
     setPinEnabled(true);
     setNewPin('');
     setConfirmPin('');
     setShowChangePinForm(false);
-    setPinStatus({ type: 'success', text: 'PIN Docente salvato! Questo computer è ora memorizzato come autorizzato.' });
+    setPinStatus({ type: 'success', text: 'PIN Docente salvato e sincronizzato! La Dashboard è protetta su tutti i dispositivi.' });
     setTimeout(() => setPinStatus(null), 4000);
   };
 
   const handleRemovePin = () => {
     if (!confirm('Sei sicuro di voler rimuovere il PIN Docente? Chiunque potrà accedere liberamente alla Dashboard.')) return;
-    removeTeacherPin();
+    removeTeacherPin(onUpdate, data);
     setPinEnabled(false);
     setNewPin('');
     setConfirmPin('');
     setShowChangePinForm(false);
-    setPinStatus({ type: 'success', text: 'Protezione PIN rimossa. Accesso libero ripristinato.' });
+    setPinStatus({ type: 'success', text: 'Protezione PIN rimossa. Accesso libero ripristinato per tutta l\'aula.' });
     setTimeout(() => setPinStatus(null), 4000);
   };
 

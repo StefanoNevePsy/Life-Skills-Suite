@@ -119,7 +119,8 @@ const INITIAL_DB_DATA = {
     }
   ],
   emotion_thermometer: EMOTION_THERMOMETER_DEFAULT,
-  scenario_sets: {}
+  scenario_sets: {},
+  teacher_pin_hash: null
 };
 
 // =================================================================================
@@ -1708,7 +1709,12 @@ export default function App() {
 
   // Stato sicurezza e autenticazione docente
   const [isTeacherPinModalOpen, setIsTeacherPinModalOpen] = useState(false);
-  const [teacherAuth, setTeacherAuth] = useState(() => isTeacherAuthenticated());
+  const [teacherAuth, setTeacherAuth] = useState(false);
+
+  // Ricalcola autenticazione quando arrivano i dati aggiornati da Firebase
+  useEffect(() => {
+    setTeacherAuth(isTeacherAuthenticated(data));
+  }, [data]);
 
   // Modali globali
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -1750,7 +1756,7 @@ export default function App() {
         }
     } else if (params.get('student') === '1' || params.get('join') === '1' || window.location.hash === '#student') {
         setIsStudentEntry(true);
-    } else if (isPinProtectionEnabled() && !isTeacherAuthenticated()) {
+    } else if (isPinProtectionEnabled(data) && !isTeacherAuthenticated(data)) {
         // Protezione attiva e dispositivo non autenticato come docente:
         // apre di default la vista studente anziché la Dashboard!
         setIsStudentEntry(true);
@@ -1779,8 +1785,17 @@ export default function App() {
     if (!db || !user || studentSessionCode || moderatorSessionCode) return; 
     const docRef = doc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'lifeskills'), 'main_db');
     const unsubscribe = onSnapshot(docRef, (snap) => {
-      if (snap.exists()) setData(snap.data());
-      else { setDoc(docRef, INITIAL_DB_DATA); setData(INITIAL_DB_DATA); }
+      if (snap.exists()) {
+        const snapData = snap.data();
+        setData(snapData);
+        // Se c'è un PIN impostato su Firebase e questo dispositivo non è autorizzato, proteggi la Dashboard
+        if (isPinProtectionEnabled(snapData) && !isTeacherAuthenticated(snapData)) {
+          setIsStudentEntry(true);
+        }
+      } else { 
+        setDoc(docRef, INITIAL_DB_DATA); 
+        setData(INITIAL_DB_DATA); 
+      }
     }, (err) => setData(INITIAL_DB_DATA));
     return () => unsubscribe();
   }, [user, studentSessionCode, moderatorSessionCode]);
@@ -1801,6 +1816,7 @@ export default function App() {
               setTeacherAuth(true);
               setIsStudentEntry(false);
             }}
+            dbData={data}
           />
         </>
       );
@@ -1918,7 +1934,7 @@ export default function App() {
               
               <div className="absolute top-4 right-4 flex gap-2">
                  <FullscreenButton className=""/>
-                 {isPinProtectionEnabled() && (
+                 {isPinProtectionEnabled(data) && (
                    <button 
                      onClick={() => {
                        logoutTeacher();
@@ -1969,7 +1985,13 @@ export default function App() {
           <Card title="Termometro Emozioni" subtitle="Esercizio" icon={BarChart2} color="bg-amber-200" description="Ordina le intensità emotive dal più debole al più forte." onClick={() => handleViewChange('emotion_thermometer')} />
         </main>
 
-        <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} appId={APP_ID} />
+        <SettingsModal 
+          isOpen={isSettingsOpen} 
+          onClose={() => setIsSettingsOpen(false)} 
+          appId={APP_ID} 
+          data={data}
+          onUpdate={handleFullUpdate}
+        />
         <TeacherPinModal 
           isOpen={isTeacherPinModalOpen} 
           onClose={() => setIsTeacherPinModalOpen(false)}
@@ -1977,6 +1999,7 @@ export default function App() {
             setTeacherAuth(true);
             setIsStudentEntry(false);
           }}
+          dbData={data}
         />
         <P2PModal isOpen={isP2POpen} onClose={() => setIsP2POpen(false)} data={data} onUpdate={handleFullUpdate} />
       </div>
