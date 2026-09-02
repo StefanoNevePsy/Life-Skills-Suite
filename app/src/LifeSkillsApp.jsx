@@ -657,9 +657,8 @@ const FeedbackModeratorView = ({ sessionCode, user }) => {
 // VISTA INGRESSO STUDENTE
 const StudentEntryView = ({ onJoin, onTeacherUnlock, canUnlock = true }) => {
     const [code, setCode] = useState("");
-    const [name, setName] = useState(() => {
-        try { return localStorage.getItem('lss_student_name') || ""; } catch { return ""; }
-    });
+    // Il nome parte SEMPRE vuoto ad ogni sessione, per evitare scambi tra studenti su Chromebook condivisi
+    const [name, setName] = useState("");
     const [errorMsg, setErrorMsg] = useState("");
 
     const handleEnter = () => {
@@ -672,9 +671,6 @@ const StudentEntryView = ({ onJoin, onTeacherUnlock, canUnlock = true }) => {
             return;
         }
         setErrorMsg("");
-        try {
-            localStorage.setItem('lss_student_name', name.trim());
-        } catch {}
         onJoin(code.trim().toUpperCase(), name.trim());
     };
 
@@ -1497,10 +1493,8 @@ const FeedbackStudentView = ({ sessionCode, onExit, user, initialStudentName = "
     const [sending, setSending] = useState(false);
     const [sent, setSent] = useState(false);
     const [alreadySubmitted, setAlreadySubmitted] = useState(false);
-    const [studentName, setStudentName] = useState(() => {
-        if (initialStudentName && initialStudentName.trim()) return initialStudentName.trim();
-        try { return localStorage.getItem('lss_student_name') || ""; } catch { return ""; }
-    });
+    // Su Chromebook scolastici condivisi, il nome è solo in memoria per la sessione corrente
+    const [studentName, setStudentName] = useState(() => (initialStudentName && initialStudentName.trim()) ? initialStudentName.trim() : "");
 
     useEffect(() => {
         if (!db || !user) return;
@@ -1618,7 +1612,6 @@ const FeedbackStudentView = ({ sessionCode, onExit, user, initialStudentName = "
                         const inputVal = e.target.elements.nameInput.value.trim();
                         if (inputVal.length >= 2) {
                             setStudentName(inputVal);
-                            try { localStorage.setItem('lss_student_name', inputVal); } catch {}
                         }
                     }}>
                         <input
@@ -1699,7 +1692,6 @@ const FeedbackStudentView = ({ sessionCode, onExit, user, initialStudentName = "
                         const newName = prompt("Modifica il tuo nome:", studentName);
                         if (newName && newName.trim().length >= 2) {
                             setStudentName(newName.trim());
-                            try { localStorage.setItem('lss_student_name', newName.trim()); } catch {}
                         }
                       }}
                       className="text-xs font-bold text-blue-700 hover:text-blue-900 underline ml-2"
@@ -2056,6 +2048,7 @@ export default function App() {
           initialStudentName={studentEnteredName}
           onExit={() => { 
             setStudentSessionCode(null); 
+            setStudentEnteredName(""); // Svuota il nome per il prossimo studente su questo Chromebook
             window.history.replaceState({}, document.title, window.location.pathname);
             if (!isTeacherAuthenticated(data)) {
               setIsStudentEntry(true);
