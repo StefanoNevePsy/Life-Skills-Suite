@@ -2141,120 +2141,134 @@ export default function App() {
 
   if (view === 'dashboard') {
     return (
-      <div className="min-h-screen bg-yellow-50 p-6 font-sans selection:bg-yellow-200">
-        <header className="max-w-6xl mx-auto mb-16 text-center pt-10">
-          <div className="inline-block relative">
-             <div className="absolute -inset-1 bg-black rounded-full blur-sm opacity-20 transform rotate-2"></div>
-             <div className="relative bg-white border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-4 px-12 rounded-full mb-8 transform -rotate-1">
-               <h1 className="text-4xl md:text-6xl font-black tracking-tighter text-gray-900">LIFE SKILLS <span className="text-yellow-500 relative inline-block">SUITE</span></h1>
+      <div className="min-h-screen bg-yellow-50 p-4 sm:p-6 font-sans selection:bg-yellow-200 flex flex-col">
+        
+        {/* BARRA SUPERIORE DI SISTEMA & CATTEDRA (SEPARATA DALL'HERO TITLE) */}
+        <nav className="max-w-7xl mx-auto w-full mb-4 sm:mb-8 flex flex-wrap items-center justify-between gap-3 pt-1">
+          {/* LATO SINISTRO: STATO CLOUD & ACCESSO RAPIDO STUDENTI */}
+          <div className="flex items-center gap-2.5">
+             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border-2 border-black/15 text-xs font-black text-gray-800 shadow-sm">
+                {db ? <Cloud size={15} className="text-emerald-600"/> : <Save size={15} className="text-amber-600"/>} 
+                <span>{db ? "Cloud Attivo" : "Locale"}</span>
+             </div>
+
+             <button 
+               onClick={() => { setIsStudentEntry(true); }} 
+               className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-blue-900 bg-blue-100 hover:bg-blue-200 border-2 border-black px-3.5 py-1.5 rounded-xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:scale-105 active:scale-95 transition-all"
+               title="Passa alla schermata di ingresso studenti con codice stanza"
+             >
+                <LogIn size={15} className="text-blue-700"/>
+                <span>💻 Ingresso Studenti</span>
+             </button>
+          </div>
+
+          {/* LATO DESTRO: STRUMENTI DOCENTE & UTILITY */}
+          <div className="flex items-center gap-2 flex-wrap">
+             {/* 1. TASTO GUIDA DOCENTE (Evidente e accogliente) */}
+             <button 
+               onClick={() => setIsGuideOpen(true)}
+               className="px-3.5 py-1.5 rounded-xl bg-blue-100 hover:bg-blue-200 text-blue-900 border-2 border-black font-black text-xs flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:scale-105 active:scale-95 transition-all"
+               title="Istruzioni complete e pratiche per tutte le funzioni"
+               aria-label="Apri guida per il docente"
+             >
+               <BookOpen size={14} className="text-blue-700"/>
+               <span>Guida Docente</span>
+             </button>
+
+             {/* 2. TASTO IMPOSTAZIONI */}
+             <button 
+               onClick={() => setIsSettingsOpen(true)} 
+               className="px-3 py-1.5 rounded-xl bg-white hover:bg-gray-100 text-gray-800 border-2 border-black font-black text-xs flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:scale-105 active:scale-95 transition-all" 
+               title="Impostazioni generali e sicurezza PIN"
+               aria-label="Impostazioni"
+             >
+               <Settings size={14}/>
+               <span className="hidden sm:inline">Impostazioni</span>
+             </button>
+
+             {/* 3. TASTO BLOCCA CATTEDRA (Se PIN attivo) */}
+             {isPinProtectionEnabled(data) && (
+               <button 
+                 onClick={() => {
+                   logoutTeacher();
+                   setTeacherAuth(false);
+                   setIsStudentEntry(true);
+                 }} 
+                 className="px-2.5 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 border-2 border-black rounded-xl font-black text-xs flex items-center gap-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:scale-105 active:scale-95 transition-all" 
+                 title="Blocca sessione docente (richiederà il PIN per riaccedere)"
+                 aria-label="Blocca sessione docente"
+               >
+                 <Lock size={13}/>
+                 <span className="hidden md:inline">Blocca</span>
+               </button>
+             )}
+
+             {/* 4. CLUSTER UTILITY: P2P, BACKUP, FULLSCREEN */}
+             <div className="flex items-center gap-1 bg-white p-1 rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+               <button 
+                 onClick={() => setIsP2POpen(true)} 
+                 className="p-1.5 hover:bg-gray-100 text-gray-700 rounded-lg transition-colors" 
+                 title="Sincronizzazione P2P locale"
+                 aria-label="Sincronizzazione P2P"
+               >
+                 <Smartphone size={15}/>
+               </button>
+
+               <button 
+                 onClick={() => {
+                   const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
+                   const el = document.createElement('a');
+                   el.setAttribute("href", dataStr);
+                   el.setAttribute("download", `lifeskills_FULL_BACKUP_${new Date().toISOString().slice(0,10)}.json`);
+                   document.body.appendChild(el); el.click(); el.remove();
+                 }} 
+                 className="p-1.5 hover:bg-gray-100 text-gray-700 rounded-lg transition-colors" 
+                 title="Scarica Backup Completo JSON"
+                 aria-label="Scarica backup completo"
+               >
+                 <Download size={15}/>
+               </button>
+               
+               <label 
+                 className="p-1.5 hover:bg-gray-100 text-gray-700 rounded-lg transition-colors cursor-pointer" 
+                 title="Ripristina Backup da file JSON"
+                 aria-label="Ripristina backup"
+               >
+                 <Upload size={15}/>
+                 <input 
+                   type="file" 
+                   accept=".json" 
+                   className="hidden" 
+                   onChange={(e) => {
+                       const file = e.target.files[0];
+                       if(!file) return;
+                       const reader = new FileReader();
+                       reader.onload = (evt) => {
+                           try { handleFullUpdate(JSON.parse(evt.target.result)); alert("Database ripristinato con successo!"); } catch { alert("File JSON non valido."); }
+                       };
+                       reader.readAsText(file);
+                   }}
+                 />
+               </label>
+
+               <FullscreenButton className="p-1.5 hover:bg-gray-100 text-gray-700 rounded-lg transition-colors"/>
              </div>
           </div>
-          <div className="flex justify-center gap-4 mt-4">
-              <div className="flex items-center gap-1 text-xs font-bold text-gray-400">
-                  {db ? <Cloud size={14} className="text-green-500"/> : <Save size={14}/>} 
-                  {db ? "Cloud Attivo" : "Locale"}
-              </div>
-              <button 
-                onClick={() => { setIsStudentEntry(true); }} 
-                className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-blue-700 bg-blue-100 hover:bg-blue-200 border-2 border-blue-300 px-4 py-1.5 rounded-full shadow-sm hover:scale-105 transition-all"
-                title="Accedi come studente digitando il codice PIN a 4 lettere"
-              >
-                  <LogIn size={15}/> 💻 Studente: Partecipa con PIN
-              </button>
-              
-              {/* TOOLBAR CATTEDRA SUPERIORE DESTRA */}
-              <div className="absolute top-4 right-4 flex items-center gap-2">
-                 {/* 1. TASTO GUIDA DOCENTE (Evidente e accogliente) */}
-                 <button 
-                   onClick={() => setIsGuideOpen(true)}
-                   className="px-3.5 py-1.5 rounded-xl bg-blue-100 hover:bg-blue-200 text-blue-900 border-2 border-black font-black text-xs flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:scale-105 active:scale-95 transition-all"
-                   title="Istruzioni complete e pratiche per tutte le funzioni"
-                   aria-label="Apri guida per il docente"
-                 >
-                   <BookOpen size={14} className="text-blue-700"/>
-                   <span className="hidden sm:inline">Guida Docente</span>
-                 </button>
+        </nav>
 
-                 {/* 2. TASTO IMPOSTAZIONI */}
-                 <button 
-                   onClick={() => setIsSettingsOpen(true)} 
-                   className="px-3 py-1.5 rounded-xl bg-white hover:bg-gray-100 text-gray-800 border-2 border-black font-black text-xs flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:scale-105 active:scale-95 transition-all" 
-                   title="Impostazioni generali e sicurezza PIN"
-                   aria-label="Impostazioni"
-                 >
-                   <Settings size={14}/>
-                   <span className="hidden md:inline">Impostazioni</span>
-                 </button>
-
-                 {/* 3. TASTO BLOCCA CATTEDRA (Se PIN attivo) */}
-                 {isPinProtectionEnabled(data) && (
-                   <button 
-                     onClick={() => {
-                       logoutTeacher();
-                       setTeacherAuth(false);
-                       setIsStudentEntry(true);
-                     }} 
-                     className="px-2.5 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 border-2 border-black rounded-xl font-black text-xs flex items-center gap-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:scale-105 active:scale-95 transition-all" 
-                     title="Blocca sessione docente (richiederà il PIN per riaccedere)"
-                     aria-label="Blocca sessione docente"
-                   >
-                     <Lock size={13}/>
-                     <span className="hidden lg:inline">Blocca</span>
-                   </button>
-                 )}
-
-                 {/* 4. CLUSTER UTILITY: P2P, BACKUP, FULLSCREEN */}
-                 <div className="flex items-center gap-1 bg-white/95 p-1 rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                   <button 
-                     onClick={() => setIsP2POpen(true)} 
-                     className="p-1.5 hover:bg-gray-100 text-gray-700 rounded-lg transition-colors" 
-                     title="Sincronizzazione P2P locale"
-                     aria-label="Sincronizzazione P2P"
-                   >
-                     <Smartphone size={15}/>
-                   </button>
-
-                   <button 
-                     onClick={() => {
-                       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
-                       const el = document.createElement('a');
-                       el.setAttribute("href", dataStr);
-                       el.setAttribute("download", `lifeskills_FULL_BACKUP_${new Date().toISOString().slice(0,10)}.json`);
-                       document.body.appendChild(el); el.click(); el.remove();
-                     }} 
-                     className="p-1.5 hover:bg-gray-100 text-gray-700 rounded-lg transition-colors" 
-                     title="Scarica Backup Completo JSON"
-                     aria-label="Scarica backup completo"
-                   >
-                     <Download size={15}/>
-                   </button>
-                   
-                   <label 
-                     className="p-1.5 hover:bg-gray-100 text-gray-700 rounded-lg transition-colors cursor-pointer" 
-                     title="Ripristina Backup da file JSON"
-                     aria-label="Ripristina backup"
-                   >
-                     <Upload size={15}/>
-                     <input 
-                       type="file" 
-                       accept=".json" 
-                       className="hidden" 
-                       onChange={(e) => {
-                           const file = e.target.files[0];
-                           if(!file) return;
-                           const reader = new FileReader();
-                           reader.onload = (evt) => {
-                               try { handleFullUpdate(JSON.parse(evt.target.result)); alert("Database ripristinato con successo!"); } catch { alert("File JSON non valido."); }
-                           };
-                           reader.readAsText(file);
-                       }}
-                     />
-                   </label>
-
-                   <FullscreenButton className="p-1.5 hover:bg-gray-100 text-gray-700 rounded-lg transition-colors"/>
-                 </div>
-              </div>
+        {/* HERO TITLE CON AMPIO SPAZIO E RESPIRO */}
+        <header className="max-w-4xl mx-auto my-4 sm:my-8 text-center shrink-0">
+          <div className="inline-block relative">
+             <div className="absolute -inset-1 bg-black rounded-full blur-sm opacity-20 transform rotate-2"></div>
+             <div className="relative bg-white border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] py-3 sm:py-4 px-8 sm:px-14 rounded-full transform -rotate-1">
+               <h1 className="text-3xl sm:text-5xl md:text-6xl font-black tracking-tight text-gray-900">
+                 LIFE SKILLS <span className="text-yellow-500 relative inline-block">SUITE</span>
+               </h1>
+             </div>
           </div>
+          <p className="mt-3 text-xs sm:text-sm font-bold text-gray-600 uppercase tracking-widest">
+            Attività Interattive per lo Sviluppo Socio-Emotivo e Relazionale
+          </p>
         </header>
 
         <main className="max-w-6xl mx-auto flex flex-wrap justify-center gap-8 pb-10">
