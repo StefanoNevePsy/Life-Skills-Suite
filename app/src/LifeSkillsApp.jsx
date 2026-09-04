@@ -166,30 +166,88 @@ const PollChart = ({ responses, options, onManualVote }) => {
         });
     }
 
-    const maxCount = Math.max(...Object.values(counts), 1);
+    const maxCount = Math.max(...Object.values(counts), 0);
+    // Palette neo-brutalista ad alto contrasto per le opzioni
+    const OPTION_BAR_COLORS = [
+        'bg-emerald-400',
+        'bg-cyan-400',
+        'bg-amber-300',
+        'bg-purple-300',
+        'bg-rose-300',
+        'bg-indigo-300',
+    ];
+
     return (
-        <div className="w-full h-full flex flex-col justify-center gap-4 p-4 max-w-3xl mx-auto">
-            {safeOptions.map((opt, idx) => (
-                <div key={idx} className="w-full">
-                    <div className="flex justify-between items-center mb-1 font-bold text-gray-700">
-                        <div className="flex items-center gap-2">
-                            <span>{opt}</span>
-                            {/* Manual Controls */}
-                            {onManualVote && (
-                                <div className="flex gap-1 ml-2">
-                                    <button onClick={() => onManualVote(opt, 1)} className="bg-green-100 hover:bg-green-200 text-green-700 rounded p-0.5" title="Aggiungi voto"><Plus size={14}/></button>
-                                    <button onClick={() => onManualVote(opt, -1)} className="bg-red-100 hover:bg-red-200 text-red-700 rounded p-0.5" title="Rimuovi voto"><Minus size={14}/></button>
+        <div className="w-full h-full flex flex-col justify-center gap-4 p-4 sm:p-6 max-w-3xl mx-auto">
+            {safeOptions.map((opt, idx) => {
+                const count = counts[opt] || 0;
+                const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                const isLeader = maxCount > 0 && count === maxCount;
+                const barColor = OPTION_BAR_COLORS[idx % OPTION_BAR_COLORS.length];
+
+                return (
+                    <div key={idx} className="w-full bg-white p-4 rounded-2xl border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-transform hover:-translate-y-0.5">
+                        <div className="flex flex-wrap justify-between items-center mb-2.5 gap-2">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                                <span className="w-7 h-7 rounded-xl bg-black text-white font-black text-xs flex items-center justify-center shrink-0">
+                                    {String.fromCharCode(65 + idx)}
+                                </span>
+                                <span className="font-black text-black text-base md:text-lg truncate">{opt}</span>
+                                {isLeader && count > 0 && (
+                                    <span className="bg-yellow-300 text-black border border-black px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider shrink-0 shadow-xs">
+                                        👑 In testa
+                                    </span>
+                                )}
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                                {/* Voti e percentuale */}
+                                <div className="flex items-baseline gap-1.5 font-mono">
+                                    <span className="text-xl font-black text-black">{pct}%</span>
+                                    <span className="text-xs font-bold text-gray-500">({count} {count === 1 ? 'voto' : 'voti'})</span>
                                 </div>
-                            )}
+
+                                {/* Controlli manuali per il docente (es. alzata di mano) */}
+                                {onManualVote && (
+                                    <div className="flex items-center gap-1 border-2 border-black rounded-xl p-0.5 bg-gray-50 shadow-xs">
+                                        <button 
+                                            type="button"
+                                            onClick={() => onManualVote(opt, -1)} 
+                                            disabled={count === 0}
+                                            className="w-7 h-7 flex items-center justify-center rounded-lg text-rose-700 hover:bg-rose-100 disabled:opacity-25 disabled:cursor-not-allowed transition-colors" 
+                                            title="Rimuovi 1 voto (-)"
+                                        >
+                                            <Minus size={14} className="stroke-[3]" />
+                                        </button>
+                                        <button 
+                                            type="button"
+                                            onClick={() => onManualVote(opt, 1)} 
+                                            className="w-7 h-7 flex items-center justify-center rounded-lg text-emerald-700 hover:bg-emerald-100 transition-colors" 
+                                            title="Aggiungi 1 voto manuale per alzata di mano (+)"
+                                        >
+                                            <Plus size={14} className="stroke-[3]" />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                        <span>{counts[opt]}</span>
+
+                        {/* Barra di avanzamento neo-brutalista con bordo nero */}
+                        <div className="w-full bg-gray-100 rounded-xl h-6 border-2 border-black overflow-hidden relative">
+                            <div 
+                                className={`${barColor} h-full transition-all duration-700 ease-out`} 
+                                style={{ width: `${pct}%` }}
+                            />
+                        </div>
                     </div>
-                    <div className="w-full bg-white rounded-full h-8 border-2 border-gray-200 overflow-hidden shadow-inner">
-                        <div className="bg-green-500 h-full transition-all duration-1000 ease-out" style={{ width: `${maxCount > 0 ? (counts[opt] / maxCount) * 100 : 0}%` }}/>
-                    </div>
-                </div>
-            ))}
-            <div className="text-center text-gray-400 text-sm mt-4">Voti totali: {total}</div>
+                );
+            })}
+
+            {/* Riepilogo totale */}
+            <div className="flex items-center justify-between text-xs font-black uppercase tracking-wider text-black bg-white px-5 py-2.5 rounded-xl border-2 border-black max-w-sm mx-auto shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                <span>Voti totali registrati:</span>
+                <span className="bg-black text-yellow-400 px-2.5 py-0.5 rounded-md font-mono text-sm">{total}</span>
+            </div>
         </div>
     );
 };
@@ -197,54 +255,134 @@ const PollChart = ({ responses, options, onManualVote }) => {
 const ManualQAModal = ({ isOpen, onClose, onSubmit, questions }) => {
     const [answers, setAnswers] = useState({});
     const [singleText, setSingleText] = useState("");
+    const [authorName, setAuthorName] = useState("");
+
+    // Supporto per tasti Escape e Ctrl+Enter
+    useEffect(() => {
+        if (!isOpen) return;
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                onClose();
+            }
+            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                e.preventDefault();
+                handleSubmit();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, answers, singleText, authorName, questions]);
 
     if (!isOpen) return null;
 
     const handleSubmit = () => {
+        const cleanAuthor = authorName && authorName.trim().length > 0 ? authorName.trim() : null;
+
         if (questions && questions.length > 0) {
             // Formato domande multiple
             const payload = questions.map(q => {
                 const ans = answers[q.id];
-                if (!ans) return null;
-                return `${q.text.toUpperCase()}:\n${ans}`;
+                if (!ans || !ans.trim()) return null;
+                return `${q.text.toUpperCase()}:\n${ans.trim()}`;
             }).filter(Boolean);
-            if (payload.length > 0) onSubmit(payload);
+            if (payload.length > 0) {
+                onSubmit(payload, cleanAuthor);
+            } else {
+                return;
+            }
         } else {
             // Formato testo libero
-            if (singleText.trim()) onSubmit(singleText);
+            if (!singleText || !singleText.trim()) return;
+            onSubmit(singleText.trim(), cleanAuthor);
         }
+
         setAnswers({});
         setSingleText("");
+        setAuthorName("");
         onClose();
     };
 
+    const hasValidContent = questions && questions.length > 0
+        ? Object.values(answers).some(a => a && a.trim().length > 0)
+        : singleText.trim().length > 0;
+
     return (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
-            <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl border-4 border-black max-h-[90vh] overflow-y-auto">
-                <div className="flex justify-between items-center mb-6 border-b-2 border-gray-100 pb-4">
-                    <h3 className="text-2xl font-black flex items-center gap-2"><Edit size={24} className="text-blue-500"/> Inserimento Manuale</h3>
-                    <button onClick={onClose} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200"><X size={20}/></button>
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in">
+            <div className="bg-white rounded-3xl shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-6 md:p-8 w-full max-w-2xl border-4 border-black max-h-[90vh] overflow-y-auto">
+                <div className="flex justify-between items-center mb-6 border-b-2 border-black/10 pb-4">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-yellow-300 border-2 border-black flex items-center justify-center shadow-xs">
+                            <Edit size={20} className="text-black"/>
+                        </div>
+                        <div>
+                            <h3 className="text-2xl font-black text-black leading-tight">Risposta Manuale</h3>
+                            <p className="text-xs font-bold text-gray-500">Annota una risposta raccolta a voce o su foglietto</p>
+                        </div>
+                    </div>
+                    <button 
+                        type="button"
+                        onClick={onClose} 
+                        className="p-2.5 bg-black text-white rounded-xl hover:bg-yellow-300 hover:text-black border-2 border-black transition-colors"
+                        title="Chiudi (Esc)"
+                    >
+                        <X size={18} className="stroke-[3]"/>
+                    </button>
                 </div>
 
-                <div className="space-y-6">
+                <div className="space-y-5">
+                    {/* CAMPO NOME STUDENTE (OPZIONALE) */}
+                    <div className="bg-amber-50 p-4 rounded-2xl border-2 border-amber-300 shadow-xs">
+                        <div className="flex items-center justify-between mb-1.5">
+                            <label htmlFor="manual-author-input" className="text-xs font-black uppercase tracking-wider text-amber-950 flex items-center gap-1.5">
+                                <span>👤</span> Nome Alunno / Autore
+                            </label>
+                            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-amber-200 text-amber-950 border border-amber-300">
+                                Opzionale
+                            </span>
+                        </div>
+                        <input 
+                            id="manual-author-input"
+                            type="text"
+                            className="w-full px-3.5 py-2.5 bg-white border-2 border-black rounded-xl font-bold text-black outline-none focus:ring-2 focus:ring-yellow-400 placeholder:text-gray-400 placeholder:font-normal text-sm"
+                            placeholder="Es. Marco, Sara, Gruppo 2 (lascia vuoto per anonimo)"
+                            value={authorName}
+                            onChange={e => setAuthorName(e.target.value)}
+                        />
+                        <p className="text-[11px] text-amber-900 mt-1.5 font-bold leading-tight">
+                            Puoi lasciarlo vuoto per una risposta anonima. Quando attivi "Aula Anonima" sulla lavagna il nome viene comunque mascherato alla classe per privacy.
+                        </p>
+                    </div>
+
+                    {/* CONTENUTO RISPOSTA */}
                     {questions && questions.length > 0 ? (
-                        questions.map((q, idx) => (
-                            <div key={q.id}>
-                                <label className="block font-bold text-gray-700 mb-2 text-sm uppercase tracking-wide">#{idx+1} {q.text}</label>
-                                <textarea 
-                                    className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none min-h-[80px]"
-                                    placeholder="Scrivi la risposta dello studente..."
-                                    value={answers[q.id] || ""}
-                                    onChange={e => setAnswers({...answers, [q.id]: e.target.value})}
-                                />
-                            </div>
-                        ))
+                        <div className="space-y-4">
+                            <span className="text-xs font-black uppercase tracking-wider text-gray-700 block">
+                                Risposte alle domande del set:
+                            </span>
+                            {questions.map((q, idx) => (
+                                <div key={q.id} className="bg-gray-50 p-3.5 rounded-2xl border-2 border-black/15">
+                                    <label className="block font-black text-black mb-2 text-xs uppercase tracking-wide">
+                                        #{idx+1} {q.text}
+                                    </label>
+                                    <textarea 
+                                        className="w-full p-3 bg-white border-2 border-black rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none min-h-[80px] font-medium text-black text-sm"
+                                        placeholder="Scrivi la risposta data dall'alunno..."
+                                        value={answers[q.id] || ""}
+                                        onChange={e => setAnswers({...answers, [q.id]: e.target.value})}
+                                    />
+                                </div>
+                            ))}
+                        </div>
                     ) : (
                         <div>
-                            <label className="block font-bold text-gray-700 mb-2">Risposta</label>
+                            <label className="block font-black text-black mb-2 text-xs uppercase tracking-wider">
+                                Pensiero o Risposta dell'alunno
+                            </label>
                             <textarea 
-                                className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none min-h-[150px]"
-                                placeholder="Scrivi il pensiero..."
+                                autoFocus
+                                className="w-full p-3.5 bg-white border-2 border-black rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none min-h-[140px] font-medium text-black text-sm"
+                                placeholder="Scrivi qui la risposta ascoltata in classe..."
                                 value={singleText}
                                 onChange={e => setSingleText(e.target.value)}
                             />
@@ -252,9 +390,28 @@ const ManualQAModal = ({ isOpen, onClose, onSubmit, questions }) => {
                     )}
                 </div>
 
-                <div className="mt-8 flex justify-end gap-3">
-                    <button onClick={onClose} className="px-6 py-3 rounded-xl font-bold text-gray-500 hover:bg-gray-100">Annulla</button>
-                    <button onClick={handleSubmit} className="px-8 py-3 bg-black text-white rounded-xl font-bold hover:scale-105 transition-transform shadow-lg">AGGIUNGI ALLA LAVAGNA</button>
+                <div className="mt-7 pt-4 border-t-2 border-black/10 flex flex-wrap items-center justify-between gap-3">
+                    <span className="text-[11px] font-bold text-gray-600 hidden sm:inline-block">
+                        Scorciatoia: <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded font-mono text-black">Ctrl</kbd> + <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded font-mono text-black">Invio</kbd> per salvare subito
+                    </span>
+                    <div className="flex items-center gap-2.5 ml-auto">
+                        <button 
+                            type="button"
+                            onClick={onClose} 
+                            className="px-5 py-2.5 rounded-xl font-black text-xs text-gray-700 hover:bg-gray-100 border-2 border-transparent hover:border-black transition-all"
+                        >
+                            Annulla
+                        </button>
+                        <button 
+                            type="button"
+                            onClick={handleSubmit} 
+                            disabled={!hasValidContent}
+                            className="px-6 py-2.5 bg-yellow-300 hover:bg-yellow-400 text-black border-2 border-black rounded-xl font-black text-xs uppercase tracking-wider shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
+                        >
+                            <Plus size={16} className="stroke-[3]" />
+                            <span>Aggiungi alla lavagna</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -265,6 +422,8 @@ const FloatingWordCloud = ({ responses, onManualAdd }) => {
     const containerRef = useRef(null);
     const [nodes, setNodes] = useState([]);
     const nodesRef = useRef([]); 
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [wordInput, setWordInput] = useState("");
 
     useEffect(() => {
         if (!responses) return;
@@ -301,7 +460,7 @@ const FloatingWordCloud = ({ responses, onManualAdd }) => {
                 count: item.count,
                 r: radius, 
                 size: size,
-                color: `hsl(${(i * 55) % 360}, 75%, 40%)`,
+                color: `hsl(${(i * 65) % 360}, 85%, 26%)`,
                 x: existing ? existing.x : Math.random() * 400 + 200, 
                 y: existing ? existing.y : Math.random() * 300 + 150,
                 vx: existing ? existing.vx : 0,
@@ -338,47 +497,119 @@ const FloatingWordCloud = ({ responses, onManualAdd }) => {
         return () => simulation.stop();
     }, [nodes]);
 
-    const handleAddClick = () => {
-        const word = window.prompt("Aggiungi una parola al brainstorming:");
-        if (word && word.trim()) {
-            onManualAdd(word.trim());
+    const handleWordSubmit = (e) => {
+        if (e) e.preventDefault();
+        if (wordInput && wordInput.trim()) {
+            onManualAdd(wordInput.trim());
+            setWordInput("");
+            setIsAddModalOpen(false);
         }
     };
 
-    if (nodes.length === 0) return (
-        <div className="relative w-full h-full min-h-[80vh] flex flex-col items-center justify-center bg-yellow-50/30 rounded-xl border-4 border-yellow-100">
-             <div className="text-gray-400 text-2xl font-bold uppercase opacity-50">In attesa di pensieri...</div>
-             <button onClick={handleAddClick} className="mt-4 text-gray-400 hover:text-gray-600 flex items-center gap-2 text-sm font-bold border-2 border-dashed border-gray-300 rounded-lg px-3 py-1"><Plus size={16}/> Aggiungi manuale</button>
-        </div>
-    );
-
     return (
-        <div ref={containerRef} className="relative w-full h-full overflow-hidden bg-yellow-50/30 min-h-[80vh] rounded-xl border-4 border-yellow-100 group">
-            {nodes.map((node) => (
-                <div 
-                    key={node.id}
-                    className="absolute whitespace-nowrap font-black transition-all duration-300 ease-out flex items-center justify-center text-center leading-none select-none"
-                    style={{
-                        left: node.x,
-                        top: node.y,
-                        fontSize: `${node.size}rem`,
-                        color: node.color,
-                        transform: 'translate(-50%, -50%)', 
-                        textShadow: '2px 2px 0px rgba(255,255,255,0.9), -1px -1px 0 #fff',
-                        zIndex: Math.floor(node.count * 100), 
-                        pointerEvents: 'none' 
-                    }}
-                >
-                    {node.text}
+        <div className="relative w-full h-full min-h-[80vh] flex flex-col">
+            {nodes.length === 0 ? (
+                <div className="relative flex-1 w-full flex flex-col items-center justify-center bg-yellow-50/50 rounded-3xl border-4 border-black p-8 text-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                    <div className="w-20 h-20 bg-yellow-300 border-3 border-black rounded-3xl flex items-center justify-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mb-4">
+                        <Cloud size={40} className="text-black" />
+                    </div>
+                    <h3 className="text-2xl font-black text-black mb-1">In attesa di parole e concetti...</h3>
+                    <p className="text-sm font-bold text-gray-600 max-w-sm mb-6">
+                        Gli studenti possono inviare idee dallo smartphone o dal Chromebook. Puoi anche aggiungerne tu a voce!
+                    </p>
+                    <button 
+                        type="button"
+                        onClick={() => setIsAddModalOpen(true)} 
+                        className="px-6 py-3 bg-yellow-300 hover:bg-yellow-400 text-black font-black text-sm rounded-2xl border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center gap-2 hover:scale-105 active:translate-x-0.5 active:translate-y-0.5 transition-all"
+                    >
+                        <Plus size={18} className="stroke-[3]"/>
+                        <span>Aggiungi parola a voce</span>
+                    </button>
                 </div>
-            ))}
-            <button 
-                onClick={handleAddClick} 
-                className="absolute bottom-4 right-4 p-3 rounded-full bg-white/50 hover:bg-white text-gray-400 hover:text-black shadow-sm border border-transparent hover:border-gray-300 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 z-50"
-                title="Aggiungi parola manualmente"
-            >
-                <Plus size={20}/>
-            </button>
+            ) : (
+                <div ref={containerRef} className="relative w-full flex-1 overflow-hidden bg-yellow-50/40 min-h-[80vh] rounded-3xl border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                    {nodes.map((node) => (
+                        <div 
+                            key={node.id}
+                            className="absolute whitespace-nowrap font-black transition-all duration-300 ease-out flex items-center justify-center text-center leading-none select-none"
+                            style={{
+                                left: node.x,
+                                top: node.y,
+                                fontSize: `${node.size}rem`,
+                                color: node.color,
+                                transform: 'translate(-50%, -50%)', 
+                                textShadow: '2px 2px 0px rgba(255,255,255,0.95), -1px -1px 0 rgba(255,255,255,0.9)',
+                                zIndex: Math.floor(node.count * 100), 
+                                pointerEvents: 'none' 
+                            }}
+                        >
+                            {node.text}
+                        </div>
+                    ))}
+                    {/* FAB sempre visibile per docente / LIM */}
+                    <button 
+                        type="button"
+                        onClick={() => setIsAddModalOpen(true)} 
+                        className="fixed sm:absolute bottom-6 right-6 z-40 px-4 py-3 bg-yellow-300 hover:bg-yellow-400 text-black font-black text-sm rounded-2xl border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:scale-105 active:translate-x-0.5 active:translate-y-0.5 transition-all flex items-center gap-2"
+                        title="Aggiungi una parola al brainstorming per gli studenti a voce"
+                    >
+                        <Plus size={18} className="stroke-[3]"/>
+                        <span>Aggiungi Parola</span>
+                    </button>
+                </div>
+            )}
+
+            {/* MODALE INTEGRATO PER AGGIUNTA PAROLA (NO PROMPT) */}
+            {isAddModalOpen && (
+                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in">
+                    <div className="bg-white rounded-3xl shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-6 md:p-8 w-full max-w-md border-4 border-black">
+                        <div className="flex justify-between items-center mb-5 border-b-2 border-black/10 pb-3">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-9 h-9 rounded-xl bg-cyan-300 border-2 border-black flex items-center justify-center">
+                                    <Cloud size={18} className="text-black" />
+                                </div>
+                                <h3 className="text-xl font-black text-black">Aggiungi Parola</h3>
+                            </div>
+                            <button 
+                                type="button"
+                                onClick={() => setIsAddModalOpen(false)} 
+                                className="p-2 bg-black text-white rounded-xl hover:bg-yellow-300 hover:text-black border-2 border-black transition-colors"
+                            >
+                                <X size={16} className="stroke-[3]" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleWordSubmit}>
+                            <label className="block text-xs font-black uppercase tracking-wider text-gray-800 mb-2">
+                                Concetto o Parola chiave:
+                            </label>
+                            <input 
+                                autoFocus
+                                type="text"
+                                className="w-full px-4 py-3 bg-white border-2 border-black rounded-xl font-bold text-black outline-none focus:ring-2 focus:ring-yellow-400 placeholder:text-gray-400 placeholder:font-normal text-base mb-4"
+                                placeholder="Es. Empatia, Rispetto, Emozione..."
+                                value={wordInput}
+                                onChange={e => setWordInput(e.target.value)}
+                            />
+                            <div className="flex justify-end gap-2.5">
+                                <button 
+                                    type="button"
+                                    onClick={() => setIsAddModalOpen(false)} 
+                                    className="px-4 py-2.5 rounded-xl font-black text-xs text-gray-700 hover:bg-gray-100 border-2 border-transparent hover:border-black transition-all"
+                                >
+                                    Annulla
+                                </button>
+                                <button 
+                                    type="submit"
+                                    disabled={!wordInput.trim()}
+                                    className="px-6 py-2.5 bg-yellow-300 hover:bg-yellow-400 text-black border-2 border-black rounded-xl font-black text-xs uppercase tracking-wider shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
+                                >
+                                    Aggiungi alla Nuvola
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -619,10 +850,10 @@ const FeedbackModeratorView = ({ sessionCode, user }) => {
             
             {/* TABS */}
             <div className="flex gap-2 mb-4">
-                <button onClick={() => setActiveTab('pending')} className={`flex-1 py-2 rounded-lg font-bold transition-colors ${activeTab === 'pending' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-300 hover:text-white'}`}>
+                <button onClick={() => setActiveTab('pending')} className={`flex-1 py-2 rounded-lg font-bold transition-colors ${activeTab === 'pending' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-white/90 hover:text-white'}`}>
                     Da Approvare ({pending.length})
                 </button>
-                <button onClick={() => setActiveTab('published')} className={`flex-1 py-2 rounded-lg font-bold transition-colors ${activeTab === 'published' ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-300 hover:text-white'}`}>
+                <button onClick={() => setActiveTab('published')} className={`flex-1 py-2 rounded-lg font-bold transition-colors ${activeTab === 'published' ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-white/90 hover:text-white'}`}>
                     Pubblicati ({published.length})
                 </button>
             </div>
@@ -634,7 +865,14 @@ const FeedbackModeratorView = ({ sessionCode, user }) => {
                         <div key={res.originalIdx} className={`p-4 rounded-xl border flex justify-between items-center ${activeTab === 'published' ? 'bg-gray-800 border-gray-700' : 'bg-yellow-900/20 border-yellow-600'}`}>
                             <div className="flex-1 mr-4">
                                 <p className="font-bold text-lg">{displayText}</p>
-                                <p className="text-xs text-gray-400">{new Date(res.timestamp).toLocaleTimeString()}</p>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <p className="text-xs text-gray-400">{new Date(res.timestamp).toLocaleTimeString()}</p>
+                                    {res.studentName && (
+                                        <span className="text-xs bg-purple-900/60 text-purple-200 border border-purple-500/50 px-2 py-0.5 rounded-md font-bold">
+                                            👤 {res.studentName}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                             <div className="flex gap-2">
                                 {/* Tasto Nascondi (X) */}
@@ -928,18 +1166,34 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
       });
   };
 
-  const handleManualQASubmit = async (content) => {
+  const handleManualQASubmit = async (content, authorName) => {
       if (!content || !db || !sessionCode) return;
+      const cleanAuthor = (authorName && typeof authorName === 'string' && authorName.trim().length > 0)
+          ? authorName.trim()
+          : null;
       const sessionRef = doc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'feedback_sessions'), sessionCode);
       await updateDoc(sessionRef, { 
           responses: arrayUnion({ 
               text: content, 
               timestamp: new Date().toISOString(), 
               status: 'visible',
-              visible: true 
+              visible: true,
+              ...(cleanAuthor ? { studentName: cleanAuthor } : {})
           }) 
       });
   };
+
+  // Scorciatoia rapida da tastiera per il docente: Ctrl+M per aprire l'inserimento risposta manuale
+  useEffect(() => {
+    const handleGlobalKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'm') {
+        e.preventDefault();
+        setIsManualQAOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKey);
+    return () => window.removeEventListener('keydown', handleGlobalKey);
+  }, []);
 
   const handleManualPollVote = async (option, delta) => {
       if (!db || !sessionCode) return;
@@ -990,76 +1244,195 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
 
   if (!sessionCode) {
     return (
-      <div className="flex flex-col items-center justify-center h-full p-8 bg-yellow-50 rounded-3xl border-4 border-yellow-200">
-        <div className="bg-yellow-100 p-6 rounded-full mb-6 border-4 border-yellow-300"><MessageSquare size={64} className="text-yellow-600" /></div>
-        <h2 className="text-4xl font-black mb-2 text-yellow-900">Feedback Anonimo</h2>
-        <p className="text-gray-600 mb-8 max-w-md">Scegli un'attività e proietta il QR.</p>
+      <div className="flex flex-col items-center justify-center min-h-[80vh] p-6 md:p-10 bg-yellow-50 rounded-3xl border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
+        <div className="bg-yellow-300 p-5 rounded-3xl mb-4 border-3 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+          <MessageSquare size={48} className="text-black stroke-[2.5]" />
+        </div>
+        <h2 className="text-3xl md:text-4xl font-black mb-2 text-black text-center tracking-tight">
+          Feedback &amp; Sondaggi Interattivi
+        </h2>
+        <p className="text-gray-700 font-bold mb-8 max-w-lg text-center text-sm md:text-base">
+          Scegli l'attività per la classe, configura le opzioni e proietta il codice d'accesso per raccogliere risposte in tempo reale.
+        </p>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 w-full max-w-4xl">
-            <button onClick={() => setSessionType('qa')} className={`p-6 rounded-2xl border-4 flex flex-col items-center gap-3 transition-all ${sessionType === 'qa' ? 'bg-yellow-200 border-yellow-500 scale-105 shadow-xl text-yellow-950' : 'bg-white border-gray-200 hover:border-yellow-300 text-gray-700'}`}>
-                <MessageSquare size={40}/>
-                <span className="font-black text-lg">Domande & Risposte</span>
+        {/* CARTE SELEZIONE ATTIVITÀ CON DESIGN NEO-BRUTALISTA */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8 w-full max-w-4xl">
+            <button 
+              type="button"
+              onClick={() => setSessionType('qa')} 
+              className={`p-6 rounded-3xl border-3 flex flex-col items-center text-center gap-3 transition-all ${
+                sessionType === 'qa' 
+                  ? 'bg-yellow-300 border-black scale-105 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] text-black' 
+                  : 'bg-white border-black/25 hover:border-black text-black hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]'
+              }`}
+            >
+                <div className="w-14 h-14 rounded-2xl bg-black text-yellow-300 flex items-center justify-center shadow-xs">
+                  <MessageSquare size={28} className="stroke-[2.5]"/>
+                </div>
+                <span className="font-black text-lg text-black">Domande &amp; Risposte</span>
+                <span className="text-xs font-bold text-gray-700 leading-snug">Post-it a muro per riflessioni, opinioni e risposte a voce</span>
             </button>
-            <button onClick={() => setSessionType('wordcloud')} className={`p-6 rounded-2xl border-4 flex flex-col items-center gap-3 transition-all ${sessionType === 'wordcloud' ? 'bg-blue-200 border-blue-500 scale-105 shadow-xl text-blue-950' : 'bg-white border-gray-200 hover:border-blue-300 text-gray-700'}`}>
-                <Cloud size={40}/>
-                <span className="font-black text-lg">Brainstorming</span>
+
+            <button 
+              type="button"
+              onClick={() => setSessionType('wordcloud')} 
+              className={`p-6 rounded-3xl border-3 flex flex-col items-center text-center gap-3 transition-all ${
+                sessionType === 'wordcloud' 
+                  ? 'bg-cyan-300 border-black scale-105 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] text-black' 
+                  : 'bg-white border-black/25 hover:border-black text-black hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]'
+              }`}
+            >
+                <div className="w-14 h-14 rounded-2xl bg-black text-cyan-300 flex items-center justify-center shadow-xs">
+                  <Cloud size={28} className="stroke-[2.5]"/>
+                </div>
+                <span className="font-black text-lg text-black">Brainstorming</span>
+                <span className="text-xs font-bold text-gray-700 leading-snug">Nuvola di parole dinamica per idee e parole chiave d'aula</span>
             </button>
-            <button onClick={() => setSessionType('poll')} className={`p-6 rounded-2xl border-4 flex flex-col items-center gap-3 transition-all ${sessionType === 'poll' ? 'bg-green-200 border-green-500 scale-105 shadow-xl text-green-950' : 'bg-white border-gray-200 hover:border-green-300 text-gray-700'}`}>
-                <BarChart2 size={40}/>
-                <span className="font-black text-lg">Sondaggio</span>
+
+            <button 
+              type="button"
+              onClick={() => setSessionType('poll')} 
+              className={`p-6 rounded-3xl border-3 flex flex-col items-center text-center gap-3 transition-all ${
+                sessionType === 'poll' 
+                  ? 'bg-emerald-300 border-black scale-105 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] text-black' 
+                  : 'bg-white border-black/25 hover:border-black text-black hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]'
+              }`}
+            >
+                <div className="w-14 h-14 rounded-2xl bg-black text-emerald-300 flex items-center justify-center shadow-xs">
+                  <BarChart2 size={28} className="stroke-[2.5]"/>
+                </div>
+                <span className="font-black text-lg text-black">Sondaggio</span>
+                <span className="text-xs font-bold text-gray-700 leading-snug">Votazioni immediate con percentuali e supporto per alzata di mano</span>
             </button>
         </div>
 
-        {/* OPZIONI COMUNI: MODERAZIONE */}
-        <div className="mb-6 flex flex-wrap gap-4 justify-center">
-             <div className="flex items-center gap-3 bg-white p-3 rounded-xl shadow-sm border border-gray-100">
-                <span className="font-bold text-gray-700 text-sm">Richiedi approvazione:</span>
-                <button onClick={() => setModerationEnabled(!moderationEnabled)} className={`w-12 h-6 rounded-full transition-colors relative ${moderationEnabled ? 'bg-green-500' : 'bg-gray-300'}`}>
-                    <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${moderationEnabled ? 'left-7' : 'left-1'}`} />
-                </button>
-            </div>
-            <div className="flex items-center gap-3 bg-white p-3 rounded-xl shadow-sm border border-gray-100">
-                <span className="font-bold text-gray-700 text-sm">Consenti risposte multiple per utente:</span>
-                <button onClick={() => setAllowMultipleResponses(!allowMultipleResponses)} className={`w-12 h-6 rounded-full transition-colors relative ${allowMultipleResponses ? 'bg-green-500' : 'bg-gray-300'}`}>
-                    <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${allowMultipleResponses ? 'left-7' : 'left-1'}`} />
-                </button>
-            </div>
+        {/* OPZIONI DIDATTICHE: MODERAZIONE E RISPOSTE MULTIPLE */}
+        <div className="mb-6 flex flex-wrap gap-4 justify-center max-w-2xl w-full">
+             <button 
+                type="button"
+                onClick={() => setModerationEnabled(!moderationEnabled)} 
+                className={`flex-1 min-w-[260px] p-4 rounded-2xl border-2 flex items-center justify-between transition-all ${
+                  moderationEnabled 
+                    ? 'bg-amber-100 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]' 
+                    : 'bg-white border-black/30 hover:border-black shadow-xs'
+                }`}
+             >
+                <div className="text-left pr-2">
+                  <span className="block font-black text-sm text-black">🛡️ Richiedi Approvazione</span>
+                  <span className="block text-xs font-bold text-gray-600">Le risposte appaiono solo dopo il tuo OK</span>
+                </div>
+                <div className={`w-12 h-6 rounded-full border-2 border-black p-0.5 transition-colors relative ${moderationEnabled ? 'bg-amber-400' : 'bg-gray-200'}`}>
+                    <div className={`w-4 h-4 bg-black rounded-full transition-transform ${moderationEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                </div>
+            </button>
+
+            <button 
+                type="button"
+                onClick={() => setAllowMultipleResponses(!allowMultipleResponses)} 
+                className={`flex-1 min-w-[260px] p-4 rounded-2xl border-2 flex items-center justify-between transition-all ${
+                  allowMultipleResponses 
+                    ? 'bg-emerald-100 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]' 
+                    : 'bg-white border-black/30 hover:border-black shadow-xs'
+                }`}
+            >
+                <div className="text-left pr-2">
+                  <span className="block font-black text-sm text-black">🔄 Risposte Multiple</span>
+                  <span className="block text-xs font-bold text-gray-600">Ogni studente può inviare più contributi</span>
+                </div>
+                <div className={`w-12 h-6 rounded-full border-2 border-black p-0.5 transition-colors relative ${allowMultipleResponses ? 'bg-emerald-400' : 'bg-gray-200'}`}>
+                    <div className={`w-4 h-4 bg-black rounded-full transition-transform ${allowMultipleResponses ? 'translate-x-6' : 'translate-x-0'}`} />
+                </div>
+            </button>
         </div>
 
         {sessionType === 'qa' && (
-             <div className="w-full max-w-md bg-white p-4 rounded-2xl shadow-sm border-2 border-yellow-100 mb-6 flex gap-2">
-               <div className="flex-1 relative">
-                  <select className="w-full p-3 bg-gray-50 rounded-xl border-2 border-gray-200 appearance-none font-bold text-gray-700 outline-none focus:border-yellow-400" value={selectedSetId} onChange={(e) => setSelectedSetId(e.target.value)}>
-                     <option value="">-- Risposte Libere (Nessuna Domanda) --</option>
-                     {feedbackSets && feedbackSets.map(set => (<option key={set.id} value={set.id}>{set.title}</option>))}
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16}/>
+             <div className="w-full max-w-lg bg-white p-5 rounded-2xl border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mb-6">
+               <div className="flex items-center justify-between mb-2">
+                 <label className="text-xs font-black uppercase tracking-wider text-black">
+                   Domanda o Set Domande:
+                 </label>
+                 <button 
+                   type="button"
+                   onClick={() => setIsSettingsOpen('questions')} 
+                   className="px-2.5 py-1 bg-yellow-200 hover:bg-yellow-300 text-black rounded-lg border border-black text-xs font-black flex items-center gap-1 transition-colors shadow-xs" 
+                   title="Crea o modifica set di domande"
+                 >
+                   <Settings size={13}/> Gestisci Set
+                 </button>
                </div>
-               <button onClick={() => setIsSettingsOpen('questions')} className="p-3 bg-gray-100 rounded-xl border-2 border-gray-200 hover:bg-gray-200 text-gray-600" title="Gestisci Set"><Settings size={20}/></button>
+               <div className="relative">
+                  <select 
+                    className="w-full p-3 bg-gray-50 rounded-xl border-2 border-black appearance-none font-bold text-black outline-none focus:ring-2 focus:ring-yellow-400" 
+                    value={selectedSetId} 
+                    onChange={(e) => setSelectedSetId(e.target.value)}
+                  >
+                     <option value="">-- Risposte Libere (Nessuna Domanda Prefissata) --</option>
+                     {feedbackSets && feedbackSets.map(set => (
+                       <option key={set.id} value={set.id}>
+                         Set: {set.title} ({set.questions?.length || 0} domande)
+                       </option>
+                     ))}
+                  </select>
+                  <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-700 pointer-events-none" size={18}/>
+               </div>
              </div>
         )}
 
         {sessionType === 'poll' && (
-            <div className="w-full max-w-lg bg-white p-6 rounded-2xl border-2 border-green-200 mb-8 animate-in slide-in-from-top-4 relative">
-                <button onClick={() => setIsSettingsOpen('polls')} className="absolute top-4 right-4 text-gray-400 hover:text-black"><Settings size={20}/></button>
-                <div className="mb-4">
-                     <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Preset Salvati</label>
-                     <select className="w-full p-2 bg-gray-50 rounded-lg border border-gray-200 text-sm" value={selectedPollId} onChange={(e) => setSelectedPollId(e.target.value)}>
-                        <option value="">-- Nuovo Sondaggio --</option>
+            <div className="w-full max-w-lg bg-white p-6 rounded-3xl border-3 border-black shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] mb-8 animate-in slide-in-from-top-4 relative">
+                <div className="flex justify-between items-center mb-3">
+                  <span className="text-xs font-black uppercase tracking-wider text-black">Configura Sondaggio</span>
+                  <button 
+                    type="button"
+                    onClick={() => setIsSettingsOpen('polls')} 
+                    className="px-2.5 py-1 bg-emerald-200 hover:bg-emerald-300 text-black rounded-lg border border-black text-xs font-black flex items-center gap-1 transition-colors shadow-xs"
+                    title="Gestisci sondaggi salvati"
+                  >
+                    <Settings size={13}/> Preset
+                  </button>
+                </div>
+                <div className="mb-3">
+                     <select 
+                       className="w-full p-2.5 bg-gray-50 rounded-xl border-2 border-black text-xs font-bold text-black outline-none" 
+                       value={selectedPollId} 
+                       onChange={(e) => setSelectedPollId(e.target.value)}
+                     >
+                        <option value="">-- Crea Nuovo Sondaggio --</option>
                         {pollSets && pollSets.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
                      </select>
                 </div>
-                <input value={pollQuestion} onChange={e => setPollQuestion(e.target.value)} placeholder="Domanda del sondaggio..." className="w-full p-3 mb-3 rounded-xl border-2 border-gray-200 font-bold outline-none focus:border-green-500"/>
-                <textarea value={pollOptionsInput} onChange={e => setPollOptionsInput(e.target.value)} placeholder="Opzioni (separate da virgola). Es: Sì, No, Forse" className="w-full p-3 rounded-xl border-2 border-gray-200 outline-none focus:border-green-500 h-24 mb-3"/>
-                <label className="flex items-center gap-2 font-bold text-gray-700 cursor-pointer">
-                    <input type="checkbox" checked={allowMultiple} onChange={e => setAllowMultiple(e.target.checked)} className="w-5 h-5 accent-green-500" />
-                    Consenti risposta multipla
+                <input 
+                  value={pollQuestion} 
+                  onChange={e => setPollQuestion(e.target.value)} 
+                  placeholder="Domanda del sondaggio (es. Quanto è chiaro l'argomento?)" 
+                  className="w-full p-3 mb-3 rounded-xl border-2 border-black font-bold outline-none focus:ring-2 focus:ring-emerald-300 text-sm text-black"
+                />
+                <textarea 
+                  value={pollOptionsInput} 
+                  onChange={e => setPollOptionsInput(e.target.value)} 
+                  placeholder="Opzioni separate da virgola (es. Molto chiaro, Abbastanza, Poco, Per nulla)" 
+                  className="w-full p-3 rounded-xl border-2 border-black outline-none focus:ring-2 focus:ring-emerald-300 h-24 mb-3 font-medium text-sm text-black"
+                />
+                <label className="flex items-center gap-2.5 font-black text-sm text-black cursor-pointer select-none">
+                    <input 
+                      type="checkbox" 
+                      checked={allowMultiple} 
+                      onChange={e => setAllowMultiple(e.target.checked)} 
+                      className="w-5 h-5 accent-emerald-600 rounded border-2 border-black" 
+                    />
+                    Consenti risposta multipla agli studenti
                 </label>
             </div>
         )}
 
-        <button onClick={createSession} disabled={loading} className="bg-black text-white px-12 py-5 rounded-2xl font-black text-2xl hover:scale-105 transition-transform flex items-center gap-3 shadow-xl">
-          {loading ? <Loader2 className="animate-spin"/> : <PlayIcon />} AVVIA SESSIONE
+        <button 
+          type="button"
+          onClick={createSession} 
+          disabled={loading} 
+          className="bg-black hover:bg-yellow-300 text-yellow-300 hover:text-black border-3 border-black px-10 py-4 rounded-2xl font-black text-xl hover:scale-105 active:translate-x-0.5 active:translate-y-0.5 transition-all flex items-center gap-3 shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
+        >
+          {loading ? <Loader2 className="animate-spin" size={22}/> : <PlayIcon />} 
+          <span>AVVIA SESSIONE AULA</span>
         </button>
       </div>
     );
@@ -1199,6 +1572,17 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
                   >
                     {allCollapsed ? <ChevronDown size={14}/> : <ChevronUp size={14}/>}
                     <span>{allCollapsed ? "Espandi" : "Solo nomi"}</span>
+                  </button>
+
+                  {/* Pulsante rapido inserimento a voce */}
+                  <button
+                    type="button"
+                    onClick={() => setIsManualQAOpen(true)}
+                    className="px-3 py-1.5 rounded-xl border-2 border-black bg-yellow-300 hover:bg-yellow-400 text-black font-black text-xs flex items-center gap-1.5 transition-all shadow-xs active:translate-x-0.5 active:translate-y-0.5"
+                    title="Aggiungi una risposta raccolta a voce dallo studente (o premi Ctrl+M)"
+                  >
+                    <Plus size={14} className="stroke-[3]"/>
+                    <span>Aggiungi a voce</span>
                   </button>
                 </>
              )}
@@ -1406,10 +1790,17 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
                                         <div>
                                           <div className="flex items-center justify-between pb-2 mb-3 border-b border-gray-100">
                                             <div className="flex items-center gap-2 min-w-0">
-                                              <span className="text-xs">👤</span>
-                                              <span className={`font-bold text-gray-700 uppercase tracking-wider truncate ${fontCfg.headerSize}`}>
+                                              <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-800 flex items-center justify-center font-bold text-xs flex-shrink-0">
+                                                👤
+                                              </span>
+                                              <span className={`font-black text-black uppercase tracking-wider truncate ${fontCfg.headerSize}`}>
                                                 {authorName}
                                               </span>
+                                              {showNames && res.studentName && (
+                                                <span className="hidden sm:inline-block text-[10px] font-black uppercase tracking-wider bg-purple-100 text-purple-900 border border-purple-300 px-1.5 py-0.2 rounded-md">
+                                                  Studente
+                                                </span>
+                                              )}
                                             </div>
                                             <button
                                               type="button"
@@ -1461,13 +1852,15 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
                             })}
                         </div>
                     )}
-                    {/* Pulsante aggiunta manuale QA */}
+                    {/* Pulsante aggiunta manuale QA (visibile e accessibile per LIM e desktop) */}
                     <button 
+                        type="button"
                         onClick={() => setIsManualQAOpen(true)} 
-                        className="absolute bottom-4 right-4 p-3 rounded-full bg-white/80 hover:bg-white text-gray-400 hover:text-black shadow-lg border border-transparent hover:border-gray-300 transition-all opacity-0 group-hover:opacity-100 z-50"
-                        title="Aggiungi risposta manuale"
+                        className="fixed sm:absolute bottom-6 right-6 z-40 px-4 py-3 bg-yellow-300 hover:bg-yellow-400 text-black font-black text-sm rounded-2xl border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:scale-105 active:translate-x-0.5 active:translate-y-0.5 transition-all flex items-center gap-2"
+                        title="Aggiungi manualmente una risposta raccolta a voce dallo studente (Ctrl+M)"
                     >
-                        <Plus size={20}/>
+                        <Plus size={18} className="stroke-[3]"/>
+                        <span>Aggiungi a Voce</span>
                     </button>
                     <ManualQAModal 
                         isOpen={isManualQAOpen} 
@@ -1675,7 +2068,15 @@ const FeedbackStudentView = ({ sessionCode, onExit, user, initialStudentName = "
                     <h1 className="text-2xl font-black mt-2">
                         {sessionData.type === 'poll' ? "Sondaggio" : sessionData.type === 'wordcloud' ? "Brainstorming" : "Rispondi"}
                     </h1>
-                    {status === 'closed' ? <div className="mt-4 bg-red-50 text-red-500 p-3 rounded-xl font-bold flex items-center justify-center gap-2"><Lock size={18}/> Sessione Terminata</div> : <p className="text-gray-500 text-sm mt-2">La tua risposta sarà visualizzata alla lavagna.</p>}
+                    {status === 'closed' ? (
+                        <div className="mt-4 bg-red-50 text-red-700 p-3 rounded-xl font-bold flex items-center justify-center gap-2">
+                            <Lock size={18}/> Sessione Terminata
+                        </div>
+                    ) : (
+                        <p className="text-gray-600 text-sm mt-2">
+                            La tua risposta sarà visualizzata alla lavagna.
+                        </p>
+                    )}
                 </div>
 
                 {/* RIEPILOGO NOME STUDENTE REGISTRATO */}
@@ -1718,7 +2119,7 @@ const FeedbackStudentView = ({ sessionCode, onExit, user, initialStudentName = "
                                     {sessionData.options.map(opt => {
                                         const isSelected = selectedOptions.includes(opt);
                                         return (
-                                            <button key={opt} type="button" onClick={() => handleOptionToggle(opt)} className={`w-full p-4 rounded-xl border-2 font-bold transition-all flex items-center justify-between ${isSelected ? 'bg-blue-600 text-white border-blue-700 shadow-sm' : 'bg-white border-gray-200 text-gray-800 hover:bg-gray-50'}`}>
+                                            <button key={opt} type="button" onClick={() => handleOptionToggle(opt)} className={`w-full p-4 rounded-xl border-2 font-bold transition-all flex items-center justify-between ${isSelected ? 'bg-blue-600 text-white border-blue-700 shadow-sm' : 'bg-white border-gray-200 text-black hover:bg-gray-50'}`}>
                                                 {opt}
                                                 {sessionData.allowMultiple && isSelected && <CheckSquare size={20}/>}
                                             </button>
@@ -1865,7 +2266,7 @@ const HistoryDrawer = ({ isOpen, onClose, history, theme }) => {
   return (
     <>
       {isOpen && <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 transition-opacity" onClick={onClose} />}
-      <div className={`fixed top-0 right-0 h-full w-full md:w-96 bg-white z-50 shadow-2xl transform transition-transform duration-300 ease-out border-l-4 border-black ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+      <div className={`fixed top-0 right-0 h-full w-full md:w-96 bg-white z-50 shadow-2xl transform transition-transform duration-300 ease-out border-2 border-black ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="p-6 h-full flex flex-col">
           <div className="flex justify-between items-center mb-8">
             <h3 className="text-2xl font-black uppercase flex items-center gap-2"><History className="text-gray-400" /> Cronologia</h3>
