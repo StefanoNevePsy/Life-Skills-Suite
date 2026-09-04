@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Lock, Unlock, Eye, EyeOff, X, ArrowLeft, ShieldCheck } from 'lucide-react';
-import { verifyTeacherPin, loginTeacher } from '../lib/security';
+import { verifyTeacherPin, loginTeacher, isPinProtectionEnabled } from '../lib/security';
 
 export default function TeacherPinModal({ isOpen, onClose, onSuccess, dbData }) {
   const [pin, setPin] = useState('');
