@@ -919,15 +919,15 @@ const StudentEntryView = ({ onJoin, onTeacherUnlock, canUnlock = true }) => {
                 <button
                     type="button"
                     onClick={onTeacherUnlock}
-                    className="absolute top-6 right-6 flex items-center gap-1.5 px-4 py-2 rounded-full bg-white hover:bg-gray-100 text-xs font-black text-gray-800 border-2 border-black/20 shadow-sm transition-all"
+                    className="absolute top-6 right-6 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white hover:bg-yellow-300 text-xs font-black text-black border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer"
                     title="Accesso riservato al docente tramite PIN"
                 >
-                    <Lock size={14} className="text-amber-600" /> Accesso Docente
+                    <Lock size={14} className="text-amber-700" /> Accesso Docente
                 </button>
             )}
-            <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full text-center border-4 border-black animate-in fade-in zoom-in">
-                <div className="bg-yellow-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <LogIn size={40} className="text-yellow-600"/>
+            <div className="bg-white p-8 rounded-3xl shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] max-w-md w-full text-center border-4 border-black animate-in fade-in zoom-in">
+                <div className="bg-yellow-100 w-20 h-20 rounded-2xl border-3 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center mx-auto mb-6">
+                    <LogIn size={40} className="text-black"/>
                 </div>
                 <h1 className="text-3xl font-black mb-1 text-gray-900">Partecipa</h1>
                 <p className="text-gray-500 text-xs font-bold mb-6">Inserisci il codice fornito dal docente e il tuo nome.</p>
@@ -940,7 +940,7 @@ const StudentEntryView = ({ onJoin, onTeacherUnlock, canUnlock = true }) => {
                         value={code} 
                         onChange={e => { setCode(e.target.value.toUpperCase()); setErrorMsg(""); }}
                         placeholder="ABCD" 
-                        className="w-full text-center text-3xl font-black tracking-widest p-3.5 border-4 border-gray-200 rounded-2xl focus:border-black outline-none uppercase font-mono bg-gray-50"
+                        className="w-full text-center text-3xl font-black tracking-widest p-3.5 border-4 border-black rounded-2xl focus:bg-yellow-50 outline-none uppercase font-mono bg-gray-50 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
                         maxLength={6}
                         autoFocus
                     />
@@ -955,13 +955,13 @@ const StudentEntryView = ({ onJoin, onTeacherUnlock, canUnlock = true }) => {
                         onChange={e => { setName(e.target.value); setErrorMsg(""); }}
                         onKeyDown={e => { if (e.key === 'Enter') handleEnter(); }}
                         placeholder="Es. Marco Rossi, Anna..." 
-                        className="w-full text-center text-base font-bold p-3 border-2 border-gray-200 rounded-xl focus:border-black outline-none bg-gray-50"
+                        className="w-full text-center text-base font-bold p-3 border-2 border-black rounded-xl focus:bg-yellow-50 outline-none bg-gray-50 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
                         maxLength={35}
                     />
                 </div>
 
                 {errorMsg && (
-                    <div className="mb-4 p-2.5 bg-red-50 border border-red-200 text-red-700 text-xs font-bold rounded-xl text-center">
+                    <div className="mb-4 p-2.5 bg-red-50 border-2 border-red-300 text-red-700 text-xs font-black rounded-xl text-center">
                         ⚠️ {errorMsg}
                     </div>
                 )}
@@ -969,7 +969,7 @@ const StudentEntryView = ({ onJoin, onTeacherUnlock, canUnlock = true }) => {
                 <button 
                     onClick={handleEnter}
                     disabled={code.trim().length < 4 || name.trim().length < 2}
-                    className="w-full bg-black text-white py-4 rounded-xl font-black text-lg hover:scale-105 transition-transform disabled:opacity-40 disabled:scale-100 disabled:cursor-not-allowed shadow-md"
+                    className="w-full bg-yellow-300 hover:bg-yellow-400 text-black border-3 border-black py-4 rounded-2xl font-black text-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:scale-105 active:translate-x-0.5 active:translate-y-0.5 transition-all disabled:opacity-40 disabled:scale-100 disabled:cursor-not-allowed cursor-pointer"
                 >
                     ENTRA NELL'ATTIVITÀ
                 </button>
@@ -1559,20 +1559,22 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
                     </button>
                   </div>
 
-                  {/* Espandi / Collassa note */}
-                  <button
-                    type="button"
-                    onClick={toggleAllCollapse}
-                    className={`px-3 py-1.5 rounded-xl border-2 transition-all flex items-center gap-1.5 text-xs font-black ${
-                      allCollapsed 
-                        ? 'bg-amber-100 hover:bg-amber-200 border-amber-300 text-amber-900' 
-                        : 'bg-gray-100 hover:bg-gray-200 border-gray-200 text-gray-700'
-                    }`}
-                    title={allCollapsed ? "Espandi tutte le note (mostra risposte)" : "Collassa tutte (mostra solo nomi)"}
-                  >
-                    {allCollapsed ? <ChevronDown size={14}/> : <ChevronUp size={14}/>}
-                    <span>{allCollapsed ? "Espandi" : "Solo nomi"}</span>
-                  </button>
+                  {/* Espandi / Collassa note (visibile solo se i nomi sono attivi) */}
+                  {showNames && (
+                    <button
+                      type="button"
+                      onClick={toggleAllCollapse}
+                      className={`px-3 py-1.5 rounded-xl border-2 transition-all flex items-center gap-1.5 text-xs font-black ${
+                        allCollapsed 
+                          ? 'bg-amber-100 hover:bg-amber-200 border-amber-300 text-amber-900' 
+                          : 'bg-gray-100 hover:bg-gray-200 border-gray-200 text-gray-700'
+                      }`}
+                      title={allCollapsed ? "Espandi tutte le note (mostra risposte)" : "Collassa tutte (mostra solo nomi)"}
+                    >
+                      {allCollapsed ? <ChevronDown size={14}/> : <ChevronUp size={14}/>}
+                      <span>{allCollapsed ? "Espandi" : "Solo nomi"}</span>
+                    </button>
+                  )}
 
                   {/* Pulsante rapido inserimento a voce */}
                   <button
@@ -1744,132 +1746,170 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
       )}
 
       {viewMode === 'responses' && (
-          <div className="flex-1 bg-yellow-50 rounded-3xl border-4 border-yellow-200 p-6 overflow-y-auto relative animate-in slide-in-from-right duration-300 group">
-            {sessionData.type === 'qa' && (
-                // Filtra solo quelle visibili o approvate
-                <>
-                    {sessionData.responses.filter(r => r.status === 'visible' || (!r.status && r.visible !== false)).length === 0 ? (
-                        <div className="absolute inset-0 flex items-center justify-center text-yellow-300 font-black text-4xl uppercase opacity-40">In attesa...</div>
+          <div className="flex-1 min-h-[62vh] md:min-h-[560px] bg-amber-50/70 rounded-3xl border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] p-6 md:p-8 flex flex-col relative animate-in slide-in-from-right duration-300 group">
+            {sessionData.type === 'qa' && (() => {
+                const visibleResponses = sessionData.responses.filter(r => r.status === 'visible' || (!r.status && r.visible !== false));
+                return (
+                  <>
+                    {visibleResponses.length === 0 ? (
+                        <div className="flex-1 flex flex-col items-center justify-center text-center py-16 px-4 select-none my-auto">
+                            <div className="w-20 h-20 rounded-2xl bg-yellow-200 border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center text-3xl mb-5">
+                                📝
+                            </div>
+                            <h3 className="text-2xl md:text-3xl font-black text-gray-900 uppercase tracking-tight">
+                                In attesa delle risposte...
+                            </h3>
+                            <p className="mt-2 text-sm md:text-base font-bold text-gray-600 max-w-md">
+                                Gli studenti possono inviare le risposte dal proprio dispositivo, oppure puoi registrarle direttamente a voce qui sotto.
+                            </p>
+                            <button
+                                type="button"
+                                onClick={() => setIsManualQAOpen(true)}
+                                className="mt-6 px-6 py-3.5 bg-yellow-300 hover:bg-yellow-400 text-black font-black text-sm md:text-base rounded-2xl border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:scale-105 active:translate-x-0.5 active:translate-y-0.5 transition-all flex items-center gap-2.5 cursor-pointer"
+                                title="Aggiungi manualmente una risposta raccolta a voce dallo studente (Ctrl+M)"
+                            >
+                                <Plus size={20} className="stroke-[3]" />
+                                <span>Aggiungi risposta a voce</span>
+                                <span className="hidden sm:inline-block text-[11px] bg-black text-yellow-300 px-2 py-0.5 rounded font-mono font-black ml-1">
+                                    Ctrl+M
+                                </span>
+                            </button>
+                        </div>
                     ) : (
-                        <div className={`grid ${QA_FONT_SIZES[qaFontSize]?.grid || QA_FONT_SIZES.md.grid}`}>
-                            {sessionData.responses.slice().reverse().map((res, idx) => {
-                                const isVisible = res.status === 'visible' || (!res.status && res.visible !== false);
-                                if (!isVisible) return null;
-                                const noteKey = res.timestamp ? `${res.timestamp}_${idx}` : `note_${idx}`;
-                                const isCollapsed = isNoteCollapsed(noteKey);
-                                const fontCfg = QA_FONT_SIZES[qaFontSize] || QA_FONT_SIZES.md;
-                                const authorName = showNames && res.studentName && res.studentName.trim()
-                                  ? res.studentName.trim()
-                                  : (showNames ? 'Anonimo' : `Risposta #${sessionData.responses.length - idx}`);
+                        <div className="flex flex-col flex-1">
+                            <div className={`grid ${QA_FONT_SIZES[qaFontSize]?.grid || QA_FONT_SIZES.md.grid} gap-4`}>
+                                {sessionData.responses.slice().reverse().map((res, idx) => {
+                                    const isVisible = res.status === 'visible' || (!res.status && res.visible !== false);
+                                    if (!isVisible) return null;
+                                    const noteKey = res.timestamp ? `${res.timestamp}_${idx}` : `note_${idx}`;
+                                    const isCollapsed = showNames && isNoteCollapsed(noteKey);
+                                    const fontCfg = QA_FONT_SIZES[qaFontSize] || QA_FONT_SIZES.md;
+                                    const authorName = showNames && res.studentName && res.studentName.trim()
+                                      ? res.studentName.trim()
+                                      : (showNames ? 'Anonimo' : '');
 
-                                if (isCollapsed) {
-                                  return (
-                                    <div
-                                      key={noteKey}
-                                      onClick={() => toggleNoteCollapse(noteKey)}
-                                      className={`bg-white rounded-xl shadow-sm border-2 border-gray-200 hover:border-black cursor-pointer hover:shadow-md transition-all flex items-center justify-between ${fontCfg.collapsedPad}`}
-                                      title="Clicca per espandere e leggere il contenuto"
-                                    >
-                                      <div className="flex items-center gap-2 min-w-0 pr-2">
-                                        <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-xs flex-shrink-0">
-                                          👤
-                                        </span>
-                                        <span className="font-bold text-gray-800 truncate text-sm">
-                                          {authorName}
-                                        </span>
-                                      </div>
-                                      <div className="flex items-center gap-1 text-gray-400 hover:text-black flex-shrink-0">
-                                        <ChevronDown size={16} />
-                                      </div>
-                                    </div>
-                                  );
-                                }
-
-                                return (
-                                    <div key={noteKey} className={`bg-white rounded-xl shadow-sm border-2 border-black/15 hover:border-black hover:-translate-y-0.5 transition-all flex flex-col justify-between ${fontCfg.cardPad}`}>
-                                        <div>
-                                          <div className="flex items-center justify-between pb-2 mb-3 border-b border-gray-100">
-                                            <div className="flex items-center gap-2 min-w-0">
-                                              <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-800 flex items-center justify-center font-bold text-xs flex-shrink-0">
-                                                👤
-                                              </span>
-                                              <span className={`font-black text-black uppercase tracking-wider truncate ${fontCfg.headerSize}`}>
-                                                {authorName}
-                                              </span>
-                                              {showNames && res.studentName && (
-                                                <span className="hidden sm:inline-block text-[10px] font-black uppercase tracking-wider bg-purple-100 text-purple-900 border border-purple-300 px-1.5 py-0.2 rounded-md">
-                                                  Studente
-                                                </span>
-                                              )}
-                                            </div>
-                                            <button
-                                              type="button"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                toggleNoteCollapse(noteKey);
-                                              }}
-                                              className="p-1 text-gray-400 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors ml-2 flex-shrink-0"
-                                              title="Collassa (mostra solo nome)"
-                                            >
-                                              <ChevronUp size={16} />
-                                            </button>
+                                    if (isCollapsed) {
+                                      return (
+                                        <div
+                                          key={noteKey}
+                                          onClick={() => toggleNoteCollapse(noteKey)}
+                                          className={`bg-white rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] cursor-pointer hover:-translate-y-0.5 transition-all flex items-center justify-between ${fontCfg.collapsedPad}`}
+                                          title="Clicca per espandere e leggere il contenuto"
+                                        >
+                                          <div className="flex items-center gap-2 min-w-0 pr-2">
+                                            <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-xs flex-shrink-0">
+                                              👤
+                                            </span>
+                                            <span className="font-black text-gray-900 truncate text-sm">
+                                              {authorName}
+                                            </span>
                                           </div>
+                                          <div className="flex items-center gap-1 text-gray-600 hover:text-black flex-shrink-0">
+                                            <ChevronDown size={16} />
+                                          </div>
+                                        </div>
+                                      );
+                                    }
 
-                                          {Array.isArray(res.text) ? (
+                                    return (
+                                        <div 
+                                          key={noteKey} 
+                                          className={`bg-white rounded-2xl border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 transition-all flex flex-col justify-between ${fontCfg.cardPad}`}
+                                        >
                                             <div>
-                                              {/* In primo piano solo le risposte: le domande restano a richiesta. */}
-                                              {res.text.map((qaItem, qaIdx) => {
-                                                const nlPos = qaItem.indexOf('\n');
-                                                const answerPart = nlPos >= 0 ? qaItem.substring(nlPos + 1) : qaItem;
-                                                return (
-                                                  <div key={qaIdx}>
-                                                    {qaIdx > 0 && <hr style={{ margin: '10px 0', borderColor: '#e5e7eb' }} />}
-                                                    <p className={`font-bold text-gray-800 whitespace-pre-wrap ${fontCfg.textSize}`}>{answerPart}</p>
+                                              {/* In modalità senza nomi (Aula Anonima), NESSUN TITOLO né 'Risposta #' */}
+                                              {showNames && (
+                                                <div className="flex items-center justify-between pb-2 mb-3 border-b-2 border-gray-100">
+                                                  <div className="flex items-center gap-2 min-w-0">
+                                                    <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-800 flex items-center justify-center font-bold text-xs flex-shrink-0">
+                                                      👤
+                                                    </span>
+                                                    <span className={`font-black text-black uppercase tracking-wider truncate ${fontCfg.headerSize}`}>
+                                                      {authorName}
+                                                    </span>
+                                                    {res.studentName && (
+                                                      <span className="hidden sm:inline-block text-[10px] font-black uppercase tracking-wider bg-purple-100 text-purple-900 border border-purple-300 px-1.5 py-0.2 rounded-md">
+                                                        Studente
+                                                      </span>
+                                                    )}
                                                   </div>
-                                                );
-                                              })}
-                                              {res.text.some((qaItem) => qaItem.indexOf('\n') >= 0) && (
-                                                <details style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px dashed #d1d5db' }}>
-                                                  <summary className={`text-gray-400 cursor-pointer font-bold ${fontCfg.detailsText}`}>Mostra domande</summary>
-                                                  <div style={{ marginTop: '6px' }}>
-                                                    {res.text.map((qaItem, qaIdx) => {
-                                                      const nlPos = qaItem.indexOf('\n');
-                                                      const questionPart = nlPos >= 0 ? qaItem.substring(0, nlPos).replace(/:$/, '') : '';
-                                                      return questionPart ? (
-                                                        <p key={qaIdx} className={`text-gray-500 italic ${fontCfg.detailsText}`} style={{ marginBottom: '3px' }}>• {questionPart}</p>
-                                                      ) : null;
-                                                    })}
-                                                  </div>
-                                                </details>
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      toggleNoteCollapse(noteKey);
+                                                    }}
+                                                    className="p-1 text-gray-400 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors ml-2 flex-shrink-0"
+                                                    title="Collassa (mostra solo nome)"
+                                                  >
+                                                    <ChevronUp size={16} />
+                                                  </button>
+                                                </div>
+                                              )}
+
+                                              {/* Contenuto del post-it */}
+                                              {Array.isArray(res.text) ? (
+                                                <div>
+                                                  {/* In primo piano le risposte; domande opzionali */}
+                                                  {res.text.map((qaItem, qaIdx) => {
+                                                    const nlPos = qaItem.indexOf('\n');
+                                                    const answerPart = nlPos >= 0 ? qaItem.substring(nlPos + 1) : qaItem;
+                                                    return (
+                                                      <div key={qaIdx}>
+                                                        {qaIdx > 0 && <hr style={{ margin: '10px 0', borderColor: '#e5e7eb' }} />}
+                                                        <p className={`font-bold text-gray-900 whitespace-pre-wrap ${fontCfg.textSize}`}>{answerPart}</p>
+                                                      </div>
+                                                    );
+                                                  })}
+                                                  {res.text.some((qaItem) => qaItem.indexOf('\n') >= 0) && (
+                                                    <details style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px dashed #d1d5db' }}>
+                                                      <summary className={`text-gray-500 cursor-pointer font-bold ${fontCfg.detailsText}`}>Mostra domande</summary>
+                                                      <div style={{ marginTop: '6px' }}>
+                                                        {res.text.map((qaItem, qaIdx) => {
+                                                          const nlPos = qaItem.indexOf('\n');
+                                                          const questionPart = nlPos >= 0 ? qaItem.substring(0, nlPos).replace(/:$/, '') : '';
+                                                          return questionPart ? (
+                                                            <p key={qaIdx} className={`text-gray-600 italic ${fontCfg.detailsText}`} style={{ marginBottom: '3px' }}>• {questionPart}</p>
+                                                          ) : null;
+                                                        })}
+                                                      </div>
+                                                    </details>
+                                                  )}
+                                                </div>
+                                              ) : (
+                                                <p className={`font-bold text-gray-900 whitespace-pre-wrap ${fontCfg.textSize}`}>{res.text}</p>
                                               )}
                                             </div>
-                                          ) : (
-                                            <p className={`font-bold text-gray-800 whitespace-pre-wrap ${fontCfg.textSize}`}>{res.text}</p>
-                                          )}
                                         </div>
-                                    </div>
-                                );
-                            })}
+                                    );
+                                })}
+                            </div>
+
+                            {/* Pulsante aggiunta manuale QA in calce quando ci sono risposte */}
+                            <div className="mt-8 flex justify-end">
+                                <button 
+                                    type="button"
+                                    onClick={() => setIsManualQAOpen(true)} 
+                                    className="px-4 py-3 bg-yellow-300 hover:bg-yellow-400 text-black font-black text-sm rounded-2xl border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:scale-105 active:translate-x-0.5 active:translate-y-0.5 transition-all flex items-center gap-2 cursor-pointer"
+                                    title="Aggiungi manualmente una risposta raccolta a voce dallo studente (Ctrl+M)"
+                                >
+                                    <Plus size={18} className="stroke-[3]"/>
+                                    <span>Aggiungi a Voce</span>
+                                    <span className="hidden sm:inline-block text-[10px] bg-black text-yellow-300 px-1.5 py-0.5 rounded font-mono font-black">Ctrl+M</span>
+                                </button>
+                            </div>
                         </div>
                     )}
-                    {/* Pulsante aggiunta manuale QA (visibile e accessibile per LIM e desktop) */}
-                    <button 
-                        type="button"
-                        onClick={() => setIsManualQAOpen(true)} 
-                        className="fixed sm:absolute bottom-6 right-6 z-40 px-4 py-3 bg-yellow-300 hover:bg-yellow-400 text-black font-black text-sm rounded-2xl border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:scale-105 active:translate-x-0.5 active:translate-y-0.5 transition-all flex items-center gap-2"
-                        title="Aggiungi manualmente una risposta raccolta a voce dallo studente (Ctrl+M)"
-                    >
-                        <Plus size={18} className="stroke-[3]"/>
-                        <span>Aggiungi a Voce</span>
-                    </button>
+
                     <ManualQAModal 
                         isOpen={isManualQAOpen} 
                         onClose={() => setIsManualQAOpen(false)} 
                         onSubmit={handleManualQASubmit}
                         questions={sessionData.questions}
                     />
-                </>
-            )}
+                  </>
+                );
+            })()}
             {sessionData.type === 'wordcloud' && <FloatingWordCloud responses={sessionData.responses} onManualAdd={handleManualAddWord} />}
             {sessionData.type === 'poll' && <PollChart responses={sessionData.responses} options={sessionData.options} onManualVote={handleManualPollVote} />}
           </div>
@@ -2178,16 +2218,16 @@ const StandardActivityView = ({ view, currentScenario, generateScenario, theme, 
       const catData = ensureCategorySets(view, data);
       const totalAll = getAllItemsForCategory(catData.sets).length;
       return (
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-6 bg-white/80 backdrop-blur-sm p-3 px-5 rounded-2xl border-2 border-black/10 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6 bg-white p-3.5 px-5 rounded-2xl border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-black uppercase text-gray-500 tracking-wider">Set Attivo:</span>
+            <span className="text-xs font-black uppercase text-gray-700 tracking-wider">Set Attivo:</span>
             <select
               value={catData.activeSetId}
               onChange={(e) => {
                 const updated = setActiveCategorySet(view, data, e.target.value);
                 onFullUpdate(updated);
               }}
-              className="bg-white border-2 border-black/20 rounded-xl px-3 py-1 font-bold text-sm text-gray-800 outline-none hover:border-black cursor-pointer shadow-sm transition-all"
+              className="bg-yellow-50 border-2 border-black rounded-xl px-3 py-1.5 font-black text-sm text-black outline-none hover:bg-yellow-100 cursor-pointer shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all"
             >
               <option value="all">⭐ Tutti gli stimoli ({totalAll} stimoli)</option>
               {catData.sets.map((s) => (
@@ -2200,7 +2240,7 @@ const StandardActivityView = ({ view, currentScenario, generateScenario, theme, 
 
           <button
             onClick={onOpenManager}
-            className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-gray-700 hover:text-black bg-white hover:bg-gray-100 px-3 py-1.5 rounded-xl border border-gray-300 shadow-sm transition-all"
+            className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-black bg-white hover:bg-yellow-300 px-3.5 py-1.5 rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all"
             title="Gestisci i set e gli stimoli"
           >
             <Settings size={14} /> Gestisci Set &amp; Stimoli
@@ -2210,45 +2250,45 @@ const StandardActivityView = ({ view, currentScenario, generateScenario, theme, 
     })()}
 
     <div className="flex-1 flex flex-col relative">
-      <div className="bg-white rounded-[2.5rem] p-8 md:p-12 shadow-[16px_16px_0px_0px_rgba(0,0,0,0.05)] border-8 border-white flex flex-col items-center justify-center min-h-[500px] relative overflow-hidden transition-all">
+      <div className="bg-white rounded-3xl p-8 md:p-12 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] border-4 border-black flex flex-col items-center justify-center min-h-[500px] relative overflow-hidden transition-all">
         {!currentScenario ? (
            <div className="flex flex-col items-center z-10 animate-fade-in">
-              <div className={`w-32 h-32 ${theme.light} rounded-full flex items-center justify-center mb-6 animate-pulse`}><RotateCcw size={48} className={theme.accent} /></div>
+              <div className={`w-32 h-32 ${theme.light} rounded-full flex items-center justify-center mb-6 animate-pulse border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]`}><RotateCcw size={48} className={theme.accent} /></div>
               <h3 className="text-2xl font-black text-gray-400 uppercase mb-6">Nessun elemento attivo</h3>
-              <button onClick={generateScenario} className={`px-10 py-5 rounded-2xl text-white font-black text-2xl shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:scale-105 active:scale-95 transition-all flex items-center gap-3 border-2 border-black ${theme.button}`}>ESTRAI {view === 'emotion_narratives' ? 'EMOZIONE' : 'SCENARIO'}</button>
+              <button onClick={generateScenario} className={`px-10 py-5 rounded-2xl text-white font-black text-2xl shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:scale-105 active:scale-95 transition-all flex items-center gap-3 border-3 border-black ${theme.button}`}>ESTRAI {view === 'emotion_narratives' ? 'EMOZIONE' : 'SCENARIO'}</button>
            </div>
         ) : (
           <div className="w-full flex flex-col h-full animate-fade-in z-10">
-            <div className="flex justify-end items-start mb-6">
-               <button onClick={generateScenario} className={`p-3 rounded-xl text-white shadow-lg hover:scale-110 active:scale-90 transition-all ${theme.button}`} title="Prossimo elemento"><RotateCcw size={20} /></button>
-               <FullscreenButton className="ml-2"/>
+            <div className="flex justify-end items-start mb-6 gap-2">
+               <button onClick={generateScenario} className={`p-3 rounded-xl text-white border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:scale-105 active:translate-x-0.5 active:translate-y-0.5 transition-all ${theme.button}`} title="Prossimo elemento"><RotateCcw size={20} /></button>
+               <FullscreenButton className="border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] rounded-xl"/>
             </div>
             <div className="flex-1 flex items-center justify-center py-4">
               <h3 className={`text-4xl md:text-6xl font-black text-gray-800 leading-tight text-center ${view === 'emotion_narratives' ? 'uppercase tracking-tighter' : ''}`}>{currentScenario.text}</h3>
             </div>
             {view !== 'affectivity_sexuality' && (
-              <div className={`mt-8 p-6 rounded-2xl ${theme.light} bg-opacity-60 border-2 border-white/50`}>
-                <h4 className={`text-xs font-black uppercase tracking-widest mb-3 ${theme.accent} flex items-center gap-2 opacity-80`}><Brain size={14} /> {view === 'emotion_narratives' ? 'Spunti per il racconto' : 'Spunti per la discussione'}</h4>
-                <ul className="grid md:grid-cols-3 gap-4 text-gray-700 font-bold text-sm">
+              <div className={`mt-8 p-6 rounded-2xl ${theme.light} bg-opacity-70 border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]`}>
+                <h4 className={`text-xs font-black uppercase tracking-widest mb-3 ${theme.accent} flex items-center gap-2`}><Brain size={14} /> {view === 'emotion_narratives' ? 'Spunti per il racconto' : 'Spunti per la discussione'}</h4>
+                <ul className="grid md:grid-cols-3 gap-4 text-gray-900 font-black text-sm">
                   {view === 'emotions' && (<>
-                      <li className="bg-white/80 p-3 rounded-xl text-center">Che emozione provi?</li>
-                      <li className="bg-white/80 p-3 rounded-xl text-center">Dove la senti nel corpo?</li>
-                      <li className="bg-white/80 p-3 rounded-xl text-center">Intensità (1-10)?</li>
+                      <li className="bg-white p-3.5 rounded-xl text-center border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">Che emozione provi?</li>
+                      <li className="bg-white p-3.5 rounded-xl text-center border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">Dove la senti nel corpo?</li>
+                      <li className="bg-white p-3.5 rounded-xl text-center border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">Intensità (1-10)?</li>
                   </>)}
                   {view === 'emotion_narratives' && (<>
-                      <li className="bg-white/80 p-3 rounded-xl text-center">Quando è successo?</li>
-                      <li className="bg-white/80 p-3 rounded-xl text-center">Cosa l'ha innescata?</li>
-                      <li className="bg-white/80 p-3 rounded-xl text-center">Come hai reagito?</li>
+                      <li className="bg-white p-3.5 rounded-xl text-center border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">Quando è successo?</li>
+                      <li className="bg-white p-3.5 rounded-xl text-center border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">Cosa l'ha innescata?</li>
+                      <li className="bg-white p-3.5 rounded-xl text-center border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">Come hai reagito?</li>
                   </>)}
                   {view === 'effective_communication' && (<>
-                      <li className="bg-white/80 p-3 rounded-xl text-center">Che stile è? (Passivo, Aggressivo, Assertivo)</li>
-                      <li className="bg-white/80 p-3 rounded-xl text-center">Come si sente chi parla e chi ascolta?</li>
-                      <li className="bg-white/80 p-3 rounded-xl text-center">Come riformularlo in modo assertivo?</li>
+                      <li className="bg-white p-3.5 rounded-xl text-center border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">Che stile è? (Passivo, Aggressivo, Assertivo)</li>
+                      <li className="bg-white p-3.5 rounded-xl text-center border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">Come si sente chi parla e chi ascolta?</li>
+                      <li className="bg-white p-3.5 rounded-xl text-center border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">Come riformularlo in modo assertivo?</li>
                   </>)}
                   {(view === 'decisions_cold' || view === 'decisions_hot') && (<>
-                      <li className="bg-white/80 p-3 rounded-xl text-center">Cosa fai subito?</li>
-                      <li className="bg-white/80 p-3 rounded-xl text-center">Conseguenze?</li>
-                      <li className="bg-white/80 p-3 rounded-xl text-center">Alternative?</li>
+                      <li className="bg-white p-3.5 rounded-xl text-center border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">Cosa fai subito?</li>
+                      <li className="bg-white p-3.5 rounded-xl text-center border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">Conseguenze?</li>
+                      <li className="bg-white p-3.5 rounded-xl text-center border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">Alternative?</li>
                   </>)}
                 </ul>
               </div>
@@ -2712,8 +2752,13 @@ export default function App() {
       return (
         <div className="min-h-screen bg-yellow-50 p-4 md:p-8 font-sans flex flex-col">
             <div className="max-w-6xl mx-auto w-full mb-6 flex justify-between items-center">
-                <button onClick={() => setView('dashboard')} className="flex items-center gap-2 font-bold text-gray-700 bg-white px-4 py-2 rounded-xl shadow-sm hover:shadow-md border border-transparent hover:border-black"><ArrowLeft size={18} /> Dashboard</button>
-                <FullscreenButton className=""/>
+                <button 
+                  onClick={() => setView('dashboard')} 
+                  className="flex items-center gap-2 font-black text-sm text-black bg-white hover:bg-yellow-300 px-4 py-2.5 rounded-2xl border-3 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer"
+                >
+                  <ArrowLeft size={18} /> Dashboard
+                </button>
+                <FullscreenButton className="border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] rounded-xl"/>
             </div>
             <div className="flex-1 max-w-6xl mx-auto w-full">
                 <FeedbackTeacherView 
@@ -2733,20 +2778,38 @@ export default function App() {
   return (
     <div className={`min-h-screen ${getTheme().bg} p-4 md:p-8 font-sans transition-colors duration-500 flex flex-col`}>
       <div className="max-w-4xl mx-auto w-full flex items-center justify-between mb-6">
-        <button onClick={() => setView('dashboard')} className="flex items-center gap-2 font-bold text-gray-700 bg-white px-4 py-2 rounded-xl shadow-sm hover:shadow-md transition-all border border-transparent hover:border-black"><ArrowLeft size={18} /> Dashboard</button>
-        <div className="flex gap-2">
+        <button 
+          onClick={() => setView('dashboard')} 
+          className="flex items-center gap-2 font-black text-sm text-black bg-white hover:bg-yellow-300 px-4 py-2.5 rounded-2xl border-3 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer"
+        >
+          <ArrowLeft size={18} /> Dashboard
+        </button>
+        <div className="flex gap-2.5">
           {['emotions', 'emotion_narratives'].includes(view) && (
-             <button onClick={() => setIsWheelOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-white text-pink-500 rounded-xl shadow-sm border border-pink-100 hover:border-pink-500 font-bold text-sm transition-all"><Heart size={18} className="fill-pink-500" /> Ruota Emozioni</button>
+             <button 
+               onClick={() => setIsWheelOpen(true)} 
+               className="flex items-center gap-2 px-4 py-2.5 bg-white text-pink-700 hover:bg-pink-100 rounded-2xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] font-black text-sm active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer"
+             >
+               <Heart size={18} className="fill-pink-500 text-pink-700" /> Ruota Emozioni
+             </button>
           )}
-          <button onClick={() => setIsManagerOpen(true)} className="p-2 bg-white text-gray-700 rounded-xl shadow-sm hover:bg-gray-100 border border-transparent hover:border-gray-300 relative">
-            <Settings size={20} />
-            {isMappingMode && <span className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full border border-white"></span>}
+          <button 
+            onClick={() => setIsManagerOpen(true)} 
+            className="p-2.5 bg-white hover:bg-yellow-200 text-black rounded-2xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all relative cursor-pointer"
+            title="Gestisci set e stimoli"
+          >
+            <Settings size={18} />
+            {isMappingMode && <span className="absolute -top-1 -right-1 w-3 h-3 bg-blue-600 rounded-full border-2 border-black"></span>}
           </button>
-          <button onClick={() => setIsHistoryOpen(true)} className="p-2 bg-white text-gray-700 rounded-xl shadow-sm hover:bg-gray-100 border border-transparent hover:border-gray-300 relative">
-            <History size={20} />
-            {history.length > 0 && <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border border-white"></span>}
+          <button 
+            onClick={() => setIsHistoryOpen(true)} 
+            className="p-2.5 bg-white hover:bg-yellow-200 text-black rounded-2xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all relative cursor-pointer"
+            title="Cronologia estrazioni"
+          >
+            <History size={18} />
+            {history.length > 0 && <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-black"></span>}
           </button>
-          <FullscreenButton className=""/>
+          <FullscreenButton className="border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] rounded-xl"/>
         </div>
       </div>
       

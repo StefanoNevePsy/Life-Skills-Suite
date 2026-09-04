@@ -211,7 +211,7 @@ export default function EmotionThermometer({ data, onUpdate, onClose }) {
       <div className="max-w-7xl mx-auto mb-6 flex justify-between items-center">
         <button
           onClick={view === 'menu' ? onClose : () => setView('menu')}
-          className="flex items-center gap-2 font-bold text-gray-700 bg-white px-4 py-2 rounded-xl shadow-sm hover:shadow-md border border-transparent hover:border-black"
+          className="flex items-center gap-2 font-black text-sm text-black bg-white hover:bg-yellow-300 px-4 py-2.5 rounded-2xl border-3 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer"
         >
           <ArrowLeft size={18} /> {view === 'menu' ? 'Dashboard' : 'Menu'}
         </button>
@@ -223,18 +223,18 @@ export default function EmotionThermometer({ data, onUpdate, onClose }) {
           <button
             onClick={exportJson}
             title="Esporta JSON"
-            className="p-2 rounded-lg hover:bg-gray-100 border border-gray-200"
+            className="p-2.5 rounded-xl bg-white hover:bg-yellow-200 text-black border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer"
           >
             <FileJson size={18} />
           </button>
           <button
             onClick={() => fileRef.current && fileRef.current.click()}
             title="Importa JSON"
-            className="p-2 rounded-lg hover:bg-gray-100 border border-gray-200"
+            className="p-2.5 rounded-xl bg-white hover:bg-yellow-200 text-black border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer"
           >
             <Upload size={18} />
           </button>
-          <FullscreenButton className="" />
+          <FullscreenButton className="border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] rounded-xl" />
         </div>
       </div>
 
