@@ -12,7 +12,8 @@ export const ETP_IMAGES = Array.from({ length: 60 }, (_, index) => {
     number: num,
     src: `./fotolinguaggio/etp/${num}.webp`,
     title: `Immagine #${num}`,
-    alt: `Fotolinguaggio ETP #${num}`
+    alt: `Fotolinguaggio ETP #${num}`,
+    hidden: false
   };
 });
 
@@ -67,15 +68,38 @@ export const DEFAULT_VISUAL_METAPHORS_STATE = {
 };
 
 /**
- * Assicura che lo stato contenga sempre una struttura valida con almeno una sessione.
+ * Assicura che lo stato contenga sempre una struttura valida con almeno una sessione e un set.
  */
 export const ensureVisualMetaphorsState = (state) => {
   if (!state || typeof state !== 'object') {
     return DEFAULT_VISUAL_METAPHORS_STATE;
   }
 
-  const sets = Array.isArray(state.sets) && state.sets.length > 0 ? state.sets : DEFAULT_IMAGE_SETS;
-  const activeSetId = state.activeSetId || 'etp';
+  let sets = Array.isArray(state.sets) && state.sets.length > 0 ? [...state.sets] : DEFAULT_IMAGE_SETS;
+  
+  // Garantisce che ogni set abbia id, title, images e count validi
+  sets = sets.map((s, sIdx) => {
+    const images = Array.isArray(s.images) ? s.images.map((img, imgIdx) => ({
+      id: img.id !== undefined ? img.id : (imgIdx + 1),
+      number: img.number !== undefined ? img.number : (imgIdx + 1),
+      src: img.src || '',
+      title: img.title || `Immagine #${img.number || imgIdx + 1}`,
+      alt: img.alt || `Immagine #${img.number || imgIdx + 1}`,
+      hidden: Boolean(img.hidden)
+    })) : [];
+    return {
+      id: s.id || `set_${sIdx}`,
+      title: s.title || `Set ${sIdx + 1}`,
+      subtitle: s.subtitle || '',
+      description: s.description || '',
+      count: images.length,
+      images
+    };
+  });
+
+  const activeSetId = sets.some(s => s.id === state.activeSetId) 
+    ? state.activeSetId 
+    : sets[0].id;
   
   let sessions = Array.isArray(state.sessions) ? [...state.sessions] : [];
   if (sessions.length === 0) {
@@ -91,7 +115,6 @@ export const ensureVisualMetaphorsState = (state) => {
     ];
   }
 
-  // Garantisce che ogni sessione abbia assignments valido
   sessions = sessions.map(s => ({
     ...s,
     assignments: s.assignments && typeof s.assignments === 'object' ? s.assignments : {},
@@ -108,6 +131,163 @@ export const ensureVisualMetaphorsState = (state) => {
     activeSetId,
     sessions,
     activeSessionId
+  };
+};
+
+/**
+ * Operazioni di Gestione Set di Immagini
+ */
+
+export const createImageSet = (state, { title, description, sourceMode = 'empty', sourceSetId = 'etp' }) => {
+  const safeTitle = title && title.trim().length > 0 ? title.trim() : 'Nuovo Set Fotografico';
+  const newSetId = `set_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+  
+  let initialImages = [];
+  if (sourceMode === 'duplicate') {
+    const sourceSet = state.sets.find(s => s.id === sourceSetId);
+    if (sourceSet && Array.isArray(sourceSet.images)) {
+      initialImages = sourceSet.images.map(img => ({ ...img }));
+    }
+  }
+
+  const newSet = {
+    id: newSetId,
+    title: safeTitle,
+    subtitle: '',
+    description: description || '',
+    count: initialImages.length,
+    images: initialImages
+  };
+
+  return {
+    ...state,
+    sets: [...state.sets, newSet],
+    activeSetId: newSetId
+  };
+};
+
+export const duplicateImageSet = (state, setId) => {
+  const source = state.sets.find(s => s.id === setId);
+  if (!source) return state;
+
+  const newSetId = `set_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+  const cloned = {
+    ...source,
+    id: newSetId,
+    title: `${source.title} (Copia)`,
+    images: source.images.map(img => ({ ...img }))
+  };
+
+  return {
+    ...state,
+    sets: [...state.sets, cloned],
+    activeSetId: newSetId
+  };
+};
+
+export const renameImageSet = (state, setId, newTitle, newDescription) => {
+  return {
+    ...state,
+    sets: state.sets.map(s => {
+      if (s.id !== setId) return s;
+      return {
+        ...s,
+        title: newTitle && newTitle.trim().length > 0 ? newTitle.trim() : s.title,
+        description: newDescription !== undefined ? newDescription : s.description
+      };
+    })
+  };
+};
+
+export const deleteImageSet = (state, setId) => {
+  if (state.sets.length <= 1) {
+    return state;
+  }
+  const remaining = state.sets.filter(s => s.id !== setId);
+  const nextActiveId = state.activeSetId === setId ? remaining[0].id : state.activeSetId;
+  return {
+    ...state,
+    sets: remaining,
+    activeSetId: nextActiveId
+  };
+};
+
+/**
+ * Toggle visibilità singola immagine in un set
+ */
+export const toggleImageVisibility = (state, setId, imageId) => {
+  return {
+    ...state,
+    sets: state.sets.map(s => {
+      if (s.id !== setId) return s;
+      const updatedImages = s.images.map(img => {
+        if (img.id !== imageId) return img;
+        return { ...img, hidden: !img.hidden };
+      });
+      return { ...s, images: updatedImages };
+    })
+  };
+};
+
+/**
+ * Mostra o nasconde tutte le immagini di un set
+ */
+export const setAllImagesVisibility = (state, setId, hideAll = false) => {
+  return {
+    ...state,
+    sets: state.sets.map(s => {
+      if (s.id !== setId) return s;
+      const updatedImages = s.images.map(img => ({ ...img, hidden: hideAll }));
+      return { ...s, images: updatedImages };
+    })
+  };
+};
+
+/**
+ * Aggiunge un'immagine a un set (es. caricata da file o URL)
+ */
+export const addImageToSet = (state, setId, newImage) => {
+  return {
+    ...state,
+    sets: state.sets.map(s => {
+      if (s.id !== setId) return s;
+      const nextNum = s.images.reduce((max, img) => Math.max(max, img.number || 0), 0) + 1;
+      const nextId = s.images.reduce((max, img) => Math.max(max, typeof img.id === 'number' ? img.id : 0), 0) + 1;
+      const imageToAdd = {
+        id: nextId,
+        number: nextNum,
+        src: newImage.src,
+        title: newImage.title || `Immagine #${nextNum}`,
+        alt: newImage.alt || `Immagine #${nextNum}`,
+        hidden: false
+      };
+      const newImages = [...s.images, imageToAdd];
+      return {
+        ...s,
+        count: newImages.length,
+        images: newImages
+      };
+    })
+  };
+};
+
+/**
+ * Rimuove un'immagine da un set
+ */
+export const removeImageFromSet = (state, setId, imageId) => {
+  return {
+    ...state,
+    sets: state.sets.map(s => {
+      if (s.id !== setId) return s;
+      const filtered = s.images.filter(img => img.id !== imageId);
+      // Rinumera per mantenere consecutività
+      const renumbered = filtered.map((img, idx) => ({ ...img, number: idx + 1 }));
+      return {
+        ...s,
+        count: renumbered.length,
+        images: renumbered
+      };
+    })
   };
 };
 

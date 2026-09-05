@@ -3,9 +3,10 @@ import {
   ArrowLeft, Search, X, Plus, Trash2, Edit, Copy, Check, 
   ChevronLeft, ChevronRight, Maximize2, Users, Sparkles, 
   Filter, Grid, LayoutGrid, Download, RefreshCw, FileText,
-  SlidersHorizontal, CheckCircle2
+  SlidersHorizontal, CheckCircle2, Settings, EyeOff
 } from 'lucide-react';
 import FullscreenButton from './FullscreenButton';
+import VisualMetaphorsManager from './VisualMetaphorsManager';
 import { 
   ensureVisualMetaphorsState, 
   createNewSession, 
@@ -25,12 +26,22 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack }) {
     return vmState.sessions.find(s => s.id === vmState.activeSessionId) || vmState.sessions[0];
   }, [vmState]);
 
+  // Immagini visibili nel set (non nascoste)
+  const visibleImages = useMemo(() => {
+    return (activeSet?.images || []).filter(img => !img.hidden);
+  }, [activeSet]);
+
+  const hiddenCount = useMemo(() => {
+    return (activeSet?.images || []).filter(img => img.hidden).length;
+  }, [activeSet]);
+
   // Stati UI locali
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState('all'); // 'all' | 'chosen' | 'unchosen'
   const [gridColumns, setGridColumns] = useState(5); // 3, 4, 5, 6
   const [lightboxImageId, setLightboxImageId] = useState(null);
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
+  const [isManagerOpen, setIsManagerOpen] = useState(false);
   const [isNewSessionModalOpen, setIsNewSessionModalOpen] = useState(false);
   const [newSessionName, setNewSessionName] = useState('');
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
@@ -156,6 +167,27 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack }) {
     return activeSession.assignments[lightboxImageId] || [];
   }, [lightboxImageId, activeSession]);
 
+  // Helper navigazione tra immagini visibili nel Lightbox
+  const handlePrevLightboxImage = () => {
+    const list = visibleImages.length > 0 ? visibleImages : (activeSet?.images || []);
+    if (list.length === 0) return;
+    const curIdx = list.findIndex(i => i.id === lightboxImageId);
+    if (curIdx >= 0) {
+      const prevIdx = curIdx <= 0 ? list.length - 1 : curIdx - 1;
+      setLightboxImageId(list[prevIdx].id);
+    }
+  };
+
+  const handleNextLightboxImage = () => {
+    const list = visibleImages.length > 0 ? visibleImages : (activeSet?.images || []);
+    if (list.length === 0) return;
+    const curIdx = list.findIndex(i => i.id === lightboxImageId);
+    if (curIdx >= 0) {
+      const nextIdx = curIdx >= list.length - 1 ? 0 : curIdx + 1;
+      setLightboxImageId(list[nextIdx].id);
+    }
+  };
+
   // Navigazione tastiera per Lightbox
   useEffect(() => {
     if (!lightboxImageId || !activeSet) return;
@@ -171,24 +203,25 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack }) {
       if (e.key === 'Escape') {
         setLightboxImageId(null);
       } else if (e.key === 'ArrowRight') {
-        const nextId = lightboxImageId >= activeSet.images.length ? 1 : lightboxImageId + 1;
-        setLightboxImageId(nextId);
+        handleNextLightboxImage();
       } else if (e.key === 'ArrowLeft') {
-        const prevId = lightboxImageId <= 1 ? activeSet.images.length : lightboxImageId - 1;
-        setLightboxImageId(prevId);
+        handlePrevLightboxImage();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [lightboxImageId, activeSet]);
+  }, [lightboxImageId, activeSet, visibleImages]);
 
-  // Immagini filtrate
+  // Immagini filtrate per la classe (esclude automaticamente quelle nascoste)
   const filteredImages = useMemo(() => {
     if (!activeSet?.images) return [];
     const query = searchQuery.trim().toLowerCase();
     const assignments = activeSession?.assignments || {};
 
     return activeSet.images.filter(img => {
+      // Non mostrare le immagini nascoste dal docente
+      if (img.hidden) return false;
+
       const students = assignments[img.id] || [];
       const isChosen = students.length > 0;
 
@@ -286,6 +319,17 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack }) {
             </select>
           </div>
 
+          {/* Pulsante Gestisci Set */}
+          <button
+            type="button"
+            onClick={() => setIsManagerOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-yellow-300 text-black border-2 border-black rounded-xl font-black text-xs uppercase tracking-wider shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer"
+            title="Gestisci i set di immagini, carica nuove foto o nascondi immagini"
+          >
+            <Settings size={14} />
+            <span className="hidden sm:inline">Gestisci Set</span>
+          </button>
+
           {/* Selettore Sessione & Gestione */}
           <div className="flex items-center gap-1 bg-yellow-100 border-2 border-black rounded-xl p-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
             <span className="text-[11px] font-black uppercase text-yellow-950 px-2 flex items-center gap-1">
@@ -380,7 +424,7 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack }) {
           </div>
 
           {/* Filtri Stato Immagini */}
-          <div className="flex items-center gap-1.5 bg-gray-100 p-1 rounded-xl border-2 border-black">
+          <div className="flex items-center gap-1.5 bg-gray-100 p-1 rounded-xl border-2 border-black flex-wrap">
             <button
               onClick={() => setFilterMode('all')}
               className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
@@ -389,7 +433,7 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack }) {
                   : 'text-gray-700 hover:text-black'
               }`}
             >
-              Tutte ({activeSet?.count || 0})
+              Tutte ({visibleImages.length})
             </button>
             <button
               onClick={() => setFilterMode('chosen')}
@@ -409,8 +453,21 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack }) {
                   : 'text-gray-700 hover:text-black'
               }`}
             >
-              Non scelte ({(activeSet?.count || 0) - chosenCount})
+              Non scelte ({Math.max(0, visibleImages.length - chosenCount)})
             </button>
+
+            {/* Badge Foto Nascoste se presenti nel set */}
+            {hiddenCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setIsManagerOpen(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-400 rounded-lg font-black text-xs shadow-xs active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer"
+                title="Alcune immagini sono nascoste alla classe. Clicca per gestirle nel pannello set."
+              >
+                <EyeOff size={13} className="text-amber-700" />
+                <span>{hiddenCount} {hiddenCount === 1 ? 'nascosta' : 'nascoste'}</span>
+              </button>
+            )}
           </div>
 
           {/* Densità Griglia (3, 4, 5, 6 colonne) */}
@@ -567,7 +624,7 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack }) {
           <div className="w-full max-w-6xl mx-auto flex items-center justify-between gap-4 mb-3 text-white">
             <div className="flex items-center gap-3">
               <span className="bg-yellow-300 text-black font-black text-sm md:text-base px-3 py-1.5 rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                Immagine #{lightboxImage.number} di {activeSet.images.length}
+                Immagine #{lightboxImage.number} {visibleImages.length > 0 ? `(${visibleImages.findIndex(i => i.id === lightboxImage.id) + 1} di ${visibleImages.length})` : ''}
               </span>
 
               {assignedToLightbox.length > 0 && (
@@ -581,21 +638,17 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack }) {
             {/* Controlli di navigazione & Chiusura */}
             <div className="flex items-center gap-2">
               <button
-                onClick={() => {
-                  const prevId = lightboxImage.id <= 1 ? activeSet.images.length : lightboxImage.id - 1;
-                  setLightboxImageId(prevId);
-                }}
-                className="p-2.5 bg-white text-black hover:bg-yellow-300 rounded-xl border-2 border-black transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5"
+                type="button"
+                onClick={handlePrevLightboxImage}
+                className="p-2.5 bg-white text-black hover:bg-yellow-300 rounded-xl border-2 border-black transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 cursor-pointer"
                 title="Immagine precedente (Freccia Sinistra)"
               >
                 <ChevronLeft size={20} className="stroke-[3]" />
               </button>
               <button
-                onClick={() => {
-                  const nextId = lightboxImage.id >= activeSet.images.length ? 1 : lightboxImage.id + 1;
-                  setLightboxImageId(nextId);
-                }}
-                className="p-2.5 bg-white text-black hover:bg-yellow-300 rounded-xl border-2 border-black transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5"
+                type="button"
+                onClick={handleNextLightboxImage}
+                className="p-2.5 bg-white text-black hover:bg-yellow-300 rounded-xl border-2 border-black transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 cursor-pointer"
                 title="Immagine successiva (Freccia Destra)"
               >
                 <ChevronRight size={20} className="stroke-[3]" />
@@ -956,6 +1009,17 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 8. MODALE GESTIONE SET & FOTOLINGUAGGIO */}
+      {/* ========================================================================= */}
+      {isManagerOpen && (
+        <VisualMetaphorsManager
+          vmState={vmState}
+          onUpdateVmState={updateVmState}
+          onClose={() => setIsManagerOpen(false)}
+        />
       )}
 
     </div>
