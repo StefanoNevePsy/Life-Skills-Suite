@@ -371,7 +371,7 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack, db, us
                     <ImageIcon size={30} className="stroke-[2.5]" />
                   </div>
                   <span className="bg-yellow-300 border-2 border-black font-black text-[11px] uppercase tracking-wider px-3 py-1 rounded-full shadow-xs">
-                    60 Fotografie
+                    Set Multipli
                   </span>
                 </div>
 
@@ -385,7 +385,7 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack, db, us
                 <div className="space-y-2.5 mb-6">
                   <div className="flex items-center gap-2 text-xs font-bold text-gray-800">
                     <span className="text-base">📸</span>
-                    <span>Set ETP a 60 foto d'autore + set personalizzati</span>
+                    <span>Set ETP d'autore + set personalizzati</span>
                   </div>
                   <div className="flex items-center gap-2 text-xs font-bold text-gray-800">
                     <span className="text-base">🏷️</span>

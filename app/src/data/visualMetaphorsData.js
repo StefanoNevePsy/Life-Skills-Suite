@@ -25,7 +25,7 @@ export const DEFAULT_IMAGE_SETS = [
     id: 'etp',
     title: 'Fotolinguaggio ETP (Vie Sociale)',
     subtitle: 'Relazioni, vissuti e identità',
-    description: 'Set di 60 immagini fotografiche d\'autore ad alto potere evocativo per stimolare l\'introspezione e la narrazione condivisa.',
+    description: 'Set di fotografie d\'autore ad alto potere evocativo per stimolare l\'introspezione e la narrazione condivisa.',
     count: 60,
     images: ETP_IMAGES
   }
@@ -155,7 +155,7 @@ export const ensureVisualMetaphorsState = (state) => {
       id: s.id || `set_${sIdx}`,
       title: s.title || `Set ${sIdx + 1}`,
       subtitle: s.subtitle || '',
-      description: s.description || '',
+      description: (s.description || '').replace(/Set di \d+ immagini fotografiche/gi, 'Set di fotografie').replace(/Set di \d+ immagini/gi, 'Set di immagini'),
       count: images.length,
       images
     };

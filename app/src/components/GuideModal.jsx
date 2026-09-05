@@ -289,13 +289,13 @@ export default function GuideModal({ isOpen, onClose }) {
                 </p>
                 <div className="grid sm:grid-cols-2 gap-3 mt-4">
                   <div className="bg-indigo-50 p-4 rounded-xl border-2 border-indigo-200">
-                    <h4 className="font-black text-xs uppercase tracking-wider text-indigo-950 mb-1">Set ETP (60 immagini)</h4>
+                    <h4 className="font-black text-xs uppercase tracking-wider text-indigo-950 mb-1">Set ETP &amp; Scenari Personalizzati</h4>
                     <p className="text-xs text-indigo-900 font-medium leading-relaxed">
                       Immagini fotografiche d'autore ad alta qualità e forte impatto simbolico, incentrate su relazioni, solitudine, sfide, natura e vita sociale.
                     </p>
                   </div>
                   <div className="bg-amber-50 p-4 rounded-xl border-2 border-amber-200">
-                    <h4 className="font-black text-xs uppercase tracking-wider text-amber-950 mb-1">Numerazione (#1 - #60)</h4>
+                    <h4 className="font-black text-xs uppercase tracking-wider text-amber-950 mb-1">Numerazione Chiara (#1, #2...)</h4>
                     <p className="text-xs text-amber-900 font-medium leading-relaxed">
                       Ogni foto presenta un numero ben visibile: gli studenti possono guardare la griglia proiettata alla LIM e scegliere con calma il loro numero.
                     </p>
