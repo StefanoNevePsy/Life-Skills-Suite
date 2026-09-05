@@ -1,10 +1,10 @@
 import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { 
-  ArrowLeft, Users, Plus, X, Edit2, Trash2, Copy, Check, 
-  Download, RefreshCw, ZoomIn, ZoomOut, Maximize2, Move, 
+  ArrowLeft, ArrowRight, Users, Plus, X, Edit2, Trash2, Copy, Check, 
+  Download, RefreshCw, ZoomIn, ZoomOut, Maximize2, Minimize2, Move, 
   MapPin, Search, Settings, Sparkles, CheckCircle2, 
   SlidersHorizontal, ChevronDown, ChevronUp, Image as ImageIcon,
-  Upload, Tag, MessageSquare
+  Upload, Tag, MessageSquare, ArrowLeftRight, ArrowUpDown, LayoutGrid, Trees
 } from 'lucide-react';
 import FullscreenButton from './FullscreenButton';
 import { 
@@ -42,6 +42,7 @@ export default function BlobTreeView({
   vmState,
   onUpdateVmState,
   onBack,
+  onBackToDashboard,
   db,
   user,
   appId
@@ -63,12 +64,128 @@ export default function BlobTreeView({
   const sessionRoster = useMemo(() => getBlobSessionStudentRoster(activeSession), [activeSession]);
 
   // Stati UI locali
-  const [zoomLevel, setZoomLevel] = useState(1); // 0.8, 1, 1.25, 1.5, 2
+  const [zoomLevel, setZoomLevel] = useState(1); // 0.5 a 3.0
   const [isCompactView, setIsCompactView] = useState(false);
   const [isPlacementMode, setIsPlacementMode] = useState(true);
   const [searchHighlight, setSearchHighlight] = useState('');
   const [hoveredMarkerId, setHoveredMarkerId] = useState(null);
   const [isRosterOpen, setIsRosterOpen] = useState(true);
+
+  // Modalità di adattamento immagine:
+  // 'contain': adatta tutta l'immagine allo schermo (visibile al 100% senza scroll)
+  // 'width': adatta alla larghezza (ideale per alberi verticali alti con scroll verticale)
+  // 'height': adatta all'altezza (ideale per scenari panoramici landscape con scroll orizzontale)
+  const [fitMode, setFitMode] = useState('contain');
+
+  // Metadati proporzioni immagine
+  const [imageMeta, setImageMeta] = useState({ width: 0, height: 0, ratio: 1 });
+
+  // Modalità Tutto Schermo / LIM dedicata
+  const [isFullscreenMode, setIsFullscreenMode] = useState(false);
+
+  // Riferimento container scrollabile per pan
+  const scrollViewportRef = useRef(null);
+
+  // Pan con mouse in modalità esplora
+  const [isPanning, setIsPanning] = useState(false);
+  const panStartRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0, container: null });
+
+  const handleImageLoad = (e) => {
+    const img = e.target;
+    const w = img.naturalWidth || 1;
+    const h = img.naturalHeight || 1;
+    setImageMeta({ width: w, height: h, ratio: w / h });
+  };
+
+  const toggleFullscreen = () => {
+    if (!isFullscreenMode) {
+      setIsFullscreenMode(true);
+      if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      }
+    } else {
+      setIsFullscreenMode(false);
+      if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handleFsChange = () => {
+      if (!document.fullscreenElement && isFullscreenMode) {
+        setIsFullscreenMode(false);
+      }
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isFullscreenMode) {
+        if (document.fullscreenElement && document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        }
+        setIsFullscreenMode(false);
+      }
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isFullscreenMode]);
+
+  const aspectInfo = useMemo(() => {
+    if (!imageMeta.width || !imageMeta.height) return null;
+    if (imageMeta.ratio < 0.8) {
+      return {
+        type: 'vertical',
+        label: 'Verticale',
+        badge: '↕️ Immagine Verticale',
+        hint: 'Illustrazione sviluppata in altezza. "Larghezza" permette di ingrandirla e scorrere in verticale, mentre "Intera" la mostra tutta.'
+      };
+    }
+    if (imageMeta.ratio > 1.3) {
+      return {
+        type: 'landscape',
+        label: 'Panoramica',
+        badge: '↔️ Immagine Landscape',
+        hint: 'Illustrazione sviluppata in larghezza. "Altezza" permette di ingrandire e scorrere orizzontalmente, mentre "Intera" la mostra tutta.'
+      };
+    }
+    return {
+      type: 'square',
+      label: 'Standard',
+      badge: '🔲 Proporzionata',
+      hint: 'Formato classico.'
+    };
+  }, [imageMeta]);
+
+  // Gestione Pan tramite mouse in modalità Esplora
+  const handleContainerMouseDown = (e) => {
+    if (isPlacementMode || draggingMarkerId) return;
+    if (e.target.closest('.blob-marker') || e.target.closest('button') || e.target.closest('input')) return;
+    const targetEl = e.currentTarget;
+    setIsPanning(true);
+    panStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      scrollLeft: targetEl.scrollLeft,
+      scrollTop: targetEl.scrollTop,
+      container: targetEl
+    };
+  };
+
+  const handleContainerMouseMove = (e) => {
+    if (isPanning && panStartRef.current.container) {
+      const dx = e.clientX - panStartRef.current.x;
+      const dy = e.clientY - panStartRef.current.y;
+      panStartRef.current.container.scrollLeft = panStartRef.current.scrollLeft - dx;
+      panStartRef.current.container.scrollTop = panStartRef.current.scrollTop - dy;
+    }
+  };
+
+  const handleContainerMouseUp = () => {
+    if (isPanning) setIsPanning(false);
+  };
 
   // Modali
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
@@ -296,11 +413,251 @@ export default function BlobTreeView({
     return activeSet.imageSrc || activeSet.thumbnailSrc || '';
   }, [activeSet]);
 
+  // -------------------------------------------------------------------------
+  // RENDER SEGNAPOSTO (MARKERS) SULL'IMMAGINE
+  // -------------------------------------------------------------------------
+  const renderMarkers = () => {
+    return (
+      <>
+        {markers.map((m, idx) => {
+          const isHovered = hoveredMarkerId === m.id;
+          const isMatchingSearch = searchHighlight.trim() && m.studentName.toLowerCase().includes(searchHighlight.trim().toLowerCase());
+
+          return (
+            <div
+              key={m.id}
+              style={{
+                left: `${m.x}%`,
+                top: `${m.y}%`,
+              }}
+              onMouseDown={(e) => handleMarkerDragStart(e, m.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setEditingMarker(m);
+              }}
+              onMouseEnter={() => setHoveredMarkerId(m.id)}
+              onMouseLeave={() => setHoveredMarkerId(null)}
+              className={`blob-marker absolute -translate-x-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing z-20 group transition-transform ${
+                isMatchingSearch ? 'animate-bounce scale-125 z-40' : ''
+              } ${isHovered ? 'scale-110 z-30' : ''}`}
+            >
+              {/* Visualizzazione compatta o estesa */}
+              {isCompactView ? (
+                // SOLO BADGE CIRCOLARE
+                <div 
+                  style={{ backgroundColor: m.color || '#FACC15' }}
+                  className="w-8 h-8 rounded-full border-2 border-black font-black text-xs text-black flex items-center justify-center shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:scale-110 transition-transform relative"
+                  title={`${m.studentName}${m.note ? ` - "${m.note}"` : ''}`}
+                >
+                  <span>{idx + 1}</span>
+
+                  {/* Tooltip Hover */}
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity bg-black text-white text-[11px] font-bold px-2 py-1 rounded-md whitespace-nowrap shadow-lg z-50">
+                    {m.studentName} {m.note && `• "${m.note}"`}
+                  </div>
+                </div>
+              ) : (
+                // BADGE ESTESO CON NOME
+                <div 
+                  style={{ backgroundColor: m.color || '#FACC15' }}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl border-2 border-black font-black text-xs text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:scale-105 transition-transform whitespace-nowrap"
+                >
+                  <span className="w-5 h-5 rounded-full bg-black text-white text-[10px] font-mono flex items-center justify-center">
+                    {idx + 1}
+                  </span>
+                  <span className="max-w-[120px] truncate">{m.studentName}</span>
+                  {m.note && (
+                    <span className="text-[10px] font-bold bg-white/70 px-1.5 py-0.5 rounded border border-black/30 max-w-[100px] truncate">
+                      {m.note}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Indicatore visivo temporaneo del click per l'assegnazione */}
+        {pendingPlacement && (
+          <div
+            style={{
+              left: `${pendingPlacement.x}%`,
+              top: `${pendingPlacement.y}%`,
+            }}
+            className="absolute -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-none"
+          >
+            <div className="w-6 h-6 rounded-full bg-yellow-400 border-2 border-black animate-ping opacity-75" />
+            <div className="w-4 h-4 rounded-full bg-black border-2 border-white absolute top-1 left-1" />
+          </div>
+        )}
+      </>
+    );
+  };
+
+  // -------------------------------------------------------------------------
+  // RENDER ROSTER ALUNNI (UTILIZZABILE SIA STANDARD CHE IN FULLSCREEN)
+  // -------------------------------------------------------------------------
+  const renderRosterContent = (isFloating = false) => {
+    return (
+      <div className="flex-1 flex flex-col min-h-0">
+        <div className="flex items-center justify-between pb-3 border-b-2 border-black mb-3">
+          <div className="flex items-center gap-2">
+            <Users size={16} className="text-black" />
+            <h3 className="font-black text-sm uppercase tracking-wider text-black">Alunni Mappati</h3>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="bg-yellow-300 border border-black font-black text-xs px-2 py-0.5 rounded-lg shadow-xs">
+              {markers.length}
+            </span>
+            {isFloating && (
+              <button 
+                onClick={() => setIsRosterOpen(false)}
+                className="p-1 hover:bg-gray-200 rounded-lg text-black transition-colors"
+                title="Chiudi elenco"
+              >
+                <X size={15} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {markers.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center py-8 text-center px-3">
+            <Sparkles size={36} className="text-yellow-400 mb-2" />
+            <p className="font-black text-xs uppercase text-gray-800 mb-1">Nessun alunno assegnato</p>
+            <p className="text-[11px] font-bold text-gray-400">
+              Clicca su un qualsiasi omino dell'albero per segnare chi si identifica con quel personaggio.
+            </p>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+            {markers.map((m, idx) => {
+              const isHovered = hoveredMarkerId === m.id;
+              return (
+                <div
+                  key={m.id}
+                  onMouseEnter={() => setHoveredMarkerId(m.id)}
+                  onMouseLeave={() => setHoveredMarkerId(null)}
+                  onClick={() => setEditingMarker(m)}
+                  style={{ borderLeftColor: m.color || '#FACC15' }}
+                  className={`p-2.5 rounded-xl border-2 border-black border-l-6 bg-white hover:bg-yellow-50/60 transition-all cursor-pointer flex items-center justify-between gap-2 shadow-xs ${
+                    isHovered ? 'ring-2 ring-black bg-yellow-100/50' : ''
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <span 
+                      style={{ backgroundColor: m.color || '#FACC15' }}
+                      className="w-6 h-6 rounded-full border border-black font-mono font-black text-[11px] flex items-center justify-center shrink-0"
+                    >
+                      {idx + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-black text-xs text-black truncate">{m.studentName}</p>
+                      {m.note ? (
+                        <p className="text-[10px] font-bold text-gray-500 truncate italic">"{m.note}"</p>
+                      ) : (
+                        <p className="text-[9px] font-bold text-gray-400">Posizione: {Math.round(m.x)}%, {Math.round(m.y)}%</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingMarker(m);
+                      }}
+                      className="p-1 text-gray-400 hover:text-black rounded"
+                      title="Modifica"
+                    >
+                      <Edit2 size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteMarker(m.id);
+                      }}
+                      className="p-1 text-gray-300 hover:text-rose-600 rounded"
+                      title="Elimina"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {markers.length > 0 && (
+          <div className="pt-3 border-t-2 border-black mt-3">
+            <button
+              type="button"
+              onClick={() => setIsSummaryOpen(true)}
+              className="w-full py-2 bg-yellow-300 hover:bg-yellow-400 text-black border-2 border-black rounded-xl font-black text-xs uppercase tracking-wider shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all flex items-center justify-center gap-1.5"
+            >
+              <Copy size={13} />
+              <span>Copia Riepilogo Classe</span>
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="flex-1 flex flex-col min-h-0 w-full">
       
       {/* ========================================================================= */}
-      {/* 1. BARRA SUPERIORE CONTROLLI BLOB TREE */}
+      {/* 0. BARRA SUPERIORE DI NAVIGAZIONE (BLOB TREES) */}
+      {/* ========================================================================= */}
+      <nav className="max-w-7xl mx-auto w-full mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {onBack && (
+            <button 
+              onClick={onBack} 
+              className="flex items-center gap-2 font-black text-sm text-black bg-white hover:bg-yellow-300 px-4 py-2.5 rounded-2xl border-3 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer"
+              title="Torna alla scelta delle attività di Metafore Visive"
+            >
+              <ArrowLeft size={18} />
+              <span>Metafore Visive</span>
+            </button>
+          )}
+
+          {onBackToDashboard && (
+            <button 
+              onClick={onBackToDashboard} 
+              className="font-bold text-xs text-gray-600 hover:text-black hover:bg-gray-100 px-3 py-2 rounded-xl border-2 border-black/20 hover:border-black transition-all cursor-pointer hidden sm:inline-block"
+              title="Torna alla Dashboard principale"
+            >
+              Dashboard
+            </button>
+          )}
+
+          <div className="flex items-center gap-2 bg-emerald-100 border-3 border-black px-3.5 py-2 rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+            <Trees size={18} className="text-emerald-800" />
+            <span className="font-black text-xs uppercase tracking-wider text-emerald-950">Blob Trees</span>
+          </div>
+        </div>
+
+        {/* Pulsante Tutto Schermo LIM Rapido */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className="flex items-center gap-2 px-4 py-2 bg-black hover:bg-yellow-400 text-yellow-300 hover:text-black border-2 border-black rounded-2xl font-black text-xs uppercase tracking-wider shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer"
+            title="Espandi l'albero a tutto schermo per la classe / LIM"
+          >
+            <Maximize2 size={16} />
+            <span>Tutto Schermo LIM</span>
+          </button>
+        </div>
+      </nav>
+
+      {/* ========================================================================= */}
+      {/* 1. BARRA SCENARIO & SESSIONI */}
       {/* ========================================================================= */}
       <section className="max-w-7xl mx-auto w-full mb-4 bg-white p-3 sm:p-4 rounded-3xl border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -411,7 +768,7 @@ export default function BlobTreeView({
       </section>
 
       {/* ========================================================================= */}
-      {/* 2. TOOLBAR CANVAS (ZOOM, MODALITA', FILTRO ALUNNO) */}
+      {/* 2. TOOLBAR CANVAS (ZOOM, ADATTAMENTO LANDSCAPE/VERTICALE, MODALITÀ) */}
       {/* ========================================================================= */}
       <section className="max-w-7xl mx-auto w-full mb-3 flex flex-wrap items-center justify-between gap-3 px-1">
         
@@ -428,7 +785,7 @@ export default function BlobTreeView({
             title="Attiva/disattiva il click sull'immagine per inserire segnaposto"
           >
             <MapPin size={14} className={isPlacementMode ? 'animate-bounce' : ''} />
-            <span>{isPlacementMode ? 'Modalità Clicca per Assegnare' : 'Modalità Esplora'}</span>
+            <span>{isPlacementMode ? 'Modalità Assegna' : 'Modalità Esplora'}</span>
           </button>
 
           <button
@@ -442,7 +799,7 @@ export default function BlobTreeView({
             title="Alterna tra etichette estese con nome o solo badge con numeri/iniziali"
           >
             <Tag size={13} />
-            <span>{isCompactView ? 'Vista: Compatta' : 'Vista: Nomi Estesi'}</span>
+            <span>{isCompactView ? 'Compatta' : 'Nomi Estesi'}</span>
           </button>
 
           {/* Toggle Roster Laterale */}
@@ -457,6 +814,54 @@ export default function BlobTreeView({
           </button>
         </div>
 
+        {/* Centro: Modalità di Adattamento Immagine (Intera, Larghezza, Altezza) */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="flex items-center bg-white border-2 border-black rounded-xl p-0.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+            <button
+              type="button"
+              onClick={() => { setFitMode('contain'); setZoomLevel(1); }}
+              className={`px-2.5 py-1 rounded-lg font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer ${
+                fitMode === 'contain' ? 'bg-yellow-300 text-black shadow-xs' : 'text-gray-600 hover:text-black hover:bg-gray-100'
+              }`}
+              title="Adatta l'intera illustrazione allo schermo per vederla completamente a colpo d'occhio senza scrollare"
+            >
+              <LayoutGrid size={13} />
+              <span>Intera</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setFitMode('width'); setZoomLevel(1); }}
+              className={`px-2.5 py-1 rounded-lg font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer ${
+                fitMode === 'width' ? 'bg-cyan-300 text-black shadow-xs' : 'text-gray-600 hover:text-black hover:bg-gray-100'
+              }`}
+              title="Adatta alla larghezza: ottimale per illustrazioni verticali e alte (scroll dall'alto in basso con personaggi grandi)"
+            >
+              <ArrowLeftRight size={13} />
+              <span>Larghezza</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setFitMode('height'); setZoomLevel(1); }}
+              className={`px-2.5 py-1 rounded-lg font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer ${
+                fitMode === 'height' ? 'bg-pink-300 text-black shadow-xs' : 'text-gray-600 hover:text-black hover:bg-gray-100'
+              }`}
+              title="Adatta all'altezza: ottimale per illustrazioni orizzontali e panoramiche (scroll laterale)"
+            >
+              <ArrowUpDown size={13} />
+              <span>Altezza</span>
+            </button>
+          </div>
+
+          {aspectInfo && (
+            <span 
+              className="text-[11px] font-bold bg-gray-100 border border-black/30 rounded-lg px-2 py-1 text-gray-700 hidden sm:inline-flex items-center gap-1"
+              title={aspectInfo.hint}
+            >
+              {aspectInfo.badge}
+            </span>
+          )}
+        </div>
+
         {/* Destra: Zoom & Evidenzia Alunno */}
         <div className="flex items-center gap-2 flex-wrap">
           {/* Cerca/Evidenzia Alunno */}
@@ -467,7 +872,7 @@ export default function BlobTreeView({
               value={searchHighlight}
               onChange={(e) => setSearchHighlight(e.target.value)}
               placeholder="Evidenzia alunno..."
-              className="pl-8 pr-7 py-1.5 bg-white border-2 border-black rounded-xl text-xs font-bold text-black outline-none focus:ring-2 focus:ring-yellow-400 w-36 sm:w-44 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+              className="pl-8 pr-7 py-1.5 bg-white border-2 border-black rounded-xl text-xs font-bold text-black outline-none focus:ring-2 focus:ring-yellow-400 w-32 sm:w-40 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
             />
             {searchHighlight && (
               <button
@@ -484,8 +889,8 @@ export default function BlobTreeView({
           <div className="flex items-center bg-white border-2 border-black rounded-xl p-0.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
             <button
               type="button"
-              onClick={() => setZoomLevel(z => Math.max(0.7, z - 0.15))}
-              disabled={zoomLevel <= 0.7}
+              onClick={() => setZoomLevel(z => Math.max(0.5, Math.round((z - 0.15) * 100) / 100))}
+              disabled={zoomLevel <= 0.5}
               className="p-1.5 hover:bg-gray-100 text-black rounded-lg disabled:opacity-30 transition-colors"
               title="Riduci Zoom"
             >
@@ -495,20 +900,30 @@ export default function BlobTreeView({
               type="button"
               onClick={() => setZoomLevel(1)}
               className="px-2 py-1 font-mono font-black text-xs hover:bg-yellow-200 rounded-md transition-colors"
-              title="Ripristina dimensione (100%)"
+              title="Ripristina zoom al 100%"
             >
               {Math.round(zoomLevel * 100)}%
             </button>
             <button
               type="button"
-              onClick={() => setZoomLevel(z => Math.min(2.5, z + 0.15))}
-              disabled={zoomLevel >= 2.5}
+              onClick={() => setZoomLevel(z => Math.min(3, Math.round((z + 0.15) * 100) / 100))}
+              disabled={zoomLevel >= 3}
               className="p-1.5 hover:bg-gray-100 text-black rounded-lg disabled:opacity-30 transition-colors"
               title="Aumenta Zoom"
             >
               <ZoomIn size={14} />
             </button>
           </div>
+
+          {/* Pulsante Espandi Schermo Intero */}
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className="p-2 bg-yellow-300 hover:bg-yellow-400 text-black border-2 border-black rounded-xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer"
+            title="Espandi a tutto schermo"
+          >
+            <Maximize2 size={14} />
+          </button>
         </div>
       </section>
 
@@ -535,98 +950,42 @@ export default function BlobTreeView({
             </div>
           </div>
 
-          {/* Area Immagine con Overflow e Zoom */}
+          {/* Area Immagine con Overflow, Pan e Zoom */}
           <div 
-            className="flex-1 w-full overflow-auto p-3 sm:p-6 flex items-center justify-center min-h-[480px] bg-[#FAF8F5] relative select-none"
+            ref={scrollViewportRef}
+            onMouseDown={handleContainerMouseDown}
+            onMouseMove={handleContainerMouseMove}
+            onMouseUp={handleContainerMouseUp}
+            className={`flex-1 w-full overflow-auto p-2 sm:p-5 flex items-center justify-center min-h-[500px] max-h-[calc(100vh-270px)] bg-[#FAF8F5] relative select-none custom-scrollbar ${
+              !isPlacementMode && !draggingMarkerId ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : ''
+            }`}
           >
             <div 
-              className="relative inline-block transition-transform duration-150 ease-out origin-center"
-              style={{ transform: `scale(${zoomLevel})` }}
+              className={`relative inline-block transition-transform duration-150 ease-out ${
+                fitMode === 'width' ? 'w-full origin-top' : fitMode === 'height' ? 'h-full origin-left' : 'origin-center'
+              }`}
+              style={{ transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined }}
             >
               {/* Immagine Principale Blob Tree */}
               <img
                 ref={imageRef}
                 src={imageSource}
                 alt={activeSet?.title || 'Blob Tree'}
+                onLoad={handleImageLoad}
                 onClick={handleImageClick}
                 draggable={false}
-                className={`max-w-full max-h-[75vh] w-auto h-auto object-contain rounded-2xl border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-white block ${
+                style={{
+                  ...(fitMode === 'contain' ? { maxHeight: 'calc(100vh - 290px)', maxWidth: '100%', width: 'auto', height: 'auto' } : {}),
+                  ...(fitMode === 'width' ? { width: '100%', height: 'auto', maxWidth: 'none', maxHeight: 'none' } : {}),
+                  ...(fitMode === 'height' ? { height: 'calc(100vh - 290px)', width: 'auto', maxHeight: 'none', maxWidth: 'none' } : {})
+                }}
+                className={`object-contain rounded-2xl border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-white block ${
                   isPlacementMode ? 'cursor-crosshair' : 'cursor-default'
                 }`}
               />
 
               {/* Rendering dei Segnaposto (Markers) */}
-              {markers.map((m, idx) => {
-                const isHovered = hoveredMarkerId === m.id;
-                const isMatchingSearch = searchHighlight.trim() && m.studentName.toLowerCase().includes(searchHighlight.trim().toLowerCase());
-
-                return (
-                  <div
-                    key={m.id}
-                    style={{
-                      left: `${m.x}%`,
-                      top: `${m.y}%`,
-                    }}
-                    onMouseDown={(e) => handleMarkerDragStart(e, m.id)}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingMarker(m);
-                    }}
-                    onMouseEnter={() => setHoveredMarkerId(m.id)}
-                    onMouseLeave={() => setHoveredMarkerId(null)}
-                    className={`absolute -translate-x-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing z-20 group transition-transform ${
-                      isMatchingSearch ? 'animate-bounce scale-125 z-40' : ''
-                    } ${isHovered ? 'scale-110 z-30' : ''}`}
-                  >
-                    {/* Visualizzazione compatta o estesa */}
-                    {isCompactView ? (
-                      // SOLO BADGE CIRCOLARE
-                      <div 
-                        style={{ backgroundColor: m.color || '#FACC15' }}
-                        className="w-8 h-8 rounded-full border-2 border-black font-black text-xs text-black flex items-center justify-center shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:scale-110 transition-transform relative"
-                        title={`${m.studentName}${m.note ? ` - "${m.note}"` : ''}`}
-                      >
-                        <span>{idx + 1}</span>
-
-                        {/* Tooltip Hover */}
-                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity bg-black text-white text-[11px] font-bold px-2 py-1 rounded-md whitespace-nowrap shadow-lg z-50">
-                          {m.studentName} {m.note && `• "${m.note}"`}
-                        </div>
-                      </div>
-                    ) : (
-                      // BADGE ESTESO CON NOME
-                      <div 
-                        style={{ backgroundColor: m.color || '#FACC15' }}
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl border-2 border-black font-black text-xs text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:scale-105 transition-transform whitespace-nowrap"
-                      >
-                        <span className="w-5 h-5 rounded-full bg-black text-white text-[10px] font-mono flex items-center justify-center">
-                          {idx + 1}
-                        </span>
-                        <span className="max-w-[120px] truncate">{m.studentName}</span>
-                        {m.note && (
-                          <span className="text-[10px] font-bold bg-white/70 px-1.5 py-0.5 rounded border border-black/30 max-w-[100px] truncate">
-                            {m.note}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-
-              {/* Indicatore visivo temporaneo del click per l'assegnazione */}
-              {pendingPlacement && (
-                <div
-                  style={{
-                    left: `${pendingPlacement.x}%`,
-                    top: `${pendingPlacement.y}%`,
-                  }}
-                  className="absolute -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-none"
-                >
-                  <div className="w-6 h-6 rounded-full bg-yellow-400 border-2 border-black animate-ping opacity-75" />
-                  <div className="w-4 h-4 rounded-full bg-black border-2 border-white absolute top-1 left-1" />
-                </div>
-              )}
+              {renderMarkers()}
             </div>
           </div>
         </div>
@@ -636,108 +995,197 @@ export default function BlobTreeView({
         {/* ========================================================================= */}
         {isRosterOpen && (
           <aside className="w-full lg:w-80 bg-white rounded-3xl border-3 border-black shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] p-4 flex flex-col shrink-0 max-h-[85vh] overflow-hidden">
-            <div className="flex items-center justify-between pb-3 border-b-2 border-black mb-3">
-              <div className="flex items-center gap-2">
-                <Users size={16} className="text-black" />
-                <h3 className="font-black text-sm uppercase tracking-wider text-black">Alunni Mappati</h3>
-              </div>
-              <span className="bg-yellow-300 border border-black font-black text-xs px-2 py-0.5 rounded-lg shadow-xs">
-                {markers.length}
-              </span>
-            </div>
-
-            {markers.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center py-8 text-center px-3">
-                <Sparkles size={36} className="text-yellow-400 mb-2" />
-                <p className="font-black text-xs uppercase text-gray-800 mb-1">Nessun alunno assegnato</p>
-                <p className="text-[11px] font-bold text-gray-400">
-                  Clicca su un qualsiasi omino dell'albero per segnare chi si identifica con quel personaggio.
-                </p>
-              </div>
-            ) : (
-              <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-                {markers.map((m, idx) => {
-                  const isHovered = hoveredMarkerId === m.id;
-                  return (
-                    <div
-                      key={m.id}
-                      onMouseEnter={() => setHoveredMarkerId(m.id)}
-                      onMouseLeave={() => setHoveredMarkerId(null)}
-                      onClick={() => setEditingMarker(m)}
-                      style={{ borderLeftColor: m.color || '#FACC15' }}
-                      className={`p-2.5 rounded-xl border-2 border-black border-l-6 bg-white hover:bg-yellow-50/60 transition-all cursor-pointer flex items-center justify-between gap-2 shadow-xs ${
-                        isHovered ? 'ring-2 ring-black bg-yellow-100/50' : ''
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <span 
-                          style={{ backgroundColor: m.color || '#FACC15' }}
-                          className="w-6 h-6 rounded-full border border-black font-mono font-black text-[11px] flex items-center justify-center shrink-0"
-                        >
-                          {idx + 1}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-black text-xs text-black truncate">{m.studentName}</p>
-                          {m.note ? (
-                            <p className="text-[10px] font-bold text-gray-500 truncate italic">"{m.note}"</p>
-                          ) : (
-                            <p className="text-[9px] font-bold text-gray-400">Posizione: {Math.round(m.x)}%, {Math.round(m.y)}%</p>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingMarker(m);
-                          }}
-                          className="p-1 text-gray-400 hover:text-black rounded"
-                          title="Modifica"
-                        >
-                          <Edit2 size={12} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteMarker(m.id);
-                          }}
-                          className="p-1 text-gray-300 hover:text-rose-600 rounded"
-                          title="Elimina"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Pulsante Esporta Rapido in fondo al Roster */}
-            {markers.length > 0 && (
-              <div className="pt-3 border-t-2 border-black mt-3">
-                <button
-                  type="button"
-                  onClick={() => setIsSummaryOpen(true)}
-                  className="w-full py-2 bg-yellow-300 hover:bg-yellow-400 text-black border-2 border-black rounded-xl font-black text-xs uppercase tracking-wider shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all flex items-center justify-center gap-1.5"
-                >
-                  <Copy size={13} />
-                  <span>Copia Riepilogo Classe</span>
-                </button>
-              </div>
-            )}
+            {renderRosterContent(false)}
           </aside>
         )}
       </main>
 
       {/* ========================================================================= */}
+      {/* 4. OVERLAY TUTTO SCHERMO / MODALITÀ LIM IMMERSIVA */}
+      {/* ========================================================================= */}
+      {isFullscreenMode && (
+        <div className="fixed inset-0 z-50 bg-[#121216] flex flex-col p-2 sm:p-4 select-none animate-in fade-in">
+          
+          {/* Floating Topbar Schermo Intero */}
+          <header className="w-full mb-2 bg-[#1C1C24] border-2 border-white/20 rounded-2xl p-2.5 flex flex-wrap items-center justify-between gap-3 shadow-2xl z-20">
+            {/* Sinistra: Esci da Schermo Intero & Titolo Scenario */}
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-rose-500 hover:bg-rose-600 text-white font-black text-xs uppercase tracking-wider rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer"
+                title="Esci da Tutto Schermo (oppure premi ESC sulla tastiera)"
+              >
+                <Minimize2 size={15} />
+                <span>Esci (Esc)</span>
+              </button>
+
+              <div className="flex items-center gap-2 bg-black/60 border border-white/20 px-3 py-1.5 rounded-xl text-white">
+                <Trees size={15} className="text-emerald-400" />
+                <span className="font-black text-xs">{activeSet?.title}</span>
+                {aspectInfo && (
+                  <span className="text-[10px] font-bold bg-white/10 px-1.5 py-0.2 rounded text-gray-300">
+                    {aspectInfo.badge}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Centro: Adattamento Immagine (Intera, Larghezza, Altezza) & Zoom */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center bg-black/60 border border-white/20 rounded-xl p-0.5">
+                <button
+                  type="button"
+                  onClick={() => { setFitMode('contain'); setZoomLevel(1); }}
+                  className={`px-2.5 py-1 rounded-lg font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer ${
+                    fitMode === 'contain' ? 'bg-yellow-400 text-black shadow-xs' : 'text-gray-300 hover:text-white hover:bg-white/10'
+                  }`}
+                  title="Mostra l'intera illustrazione senza scroll"
+                >
+                  <LayoutGrid size={13} />
+                  <span>Intera</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setFitMode('width'); setZoomLevel(1); }}
+                  className={`px-2.5 py-1 rounded-lg font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer ${
+                    fitMode === 'width' ? 'bg-cyan-400 text-black shadow-xs' : 'text-gray-300 hover:text-white hover:bg-white/10'
+                  }`}
+                  title="Espandi in larghezza (ideale per verticali lunghe)"
+                >
+                  <ArrowLeftRight size={13} />
+                  <span>Larghezza</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setFitMode('height'); setZoomLevel(1); }}
+                  className={`px-2.5 py-1 rounded-lg font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer ${
+                    fitMode === 'height' ? 'bg-pink-400 text-black shadow-xs' : 'text-gray-300 hover:text-white hover:bg-white/10'
+                  }`}
+                  title="Espandi in altezza (ideale per landscape panoramiche)"
+                >
+                  <ArrowUpDown size={13} />
+                  <span>Altezza</span>
+                </button>
+              </div>
+
+              {/* Zoom */}
+              <div className="flex items-center bg-black/60 border border-white/20 rounded-xl p-0.5 text-white">
+                <button
+                  type="button"
+                  onClick={() => setZoomLevel(z => Math.max(0.5, Math.round((z - 0.15) * 100) / 100))}
+                  disabled={zoomLevel <= 0.5}
+                  className="p-1.5 hover:bg-white/10 rounded-lg disabled:opacity-30 transition-colors"
+                >
+                  <ZoomOut size={13} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setZoomLevel(1)}
+                  className="px-2 py-0.5 font-mono font-black text-xs hover:bg-white/20 rounded transition-colors"
+                >
+                  {Math.round(zoomLevel * 100)}%
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setZoomLevel(z => Math.min(3, Math.round((z + 0.15) * 100) / 100))}
+                  disabled={zoomLevel >= 3}
+                  className="p-1.5 hover:bg-white/10 rounded-lg disabled:opacity-30 transition-colors"
+                >
+                  <ZoomIn size={13} />
+                </button>
+              </div>
+            </div>
+
+            {/* Destra: Modalità Click & Roster Drawer */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setIsPlacementMode(!isPlacementMode)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border-2 border-black font-black text-xs uppercase tracking-wider transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${
+                  isPlacementMode ? 'bg-emerald-400 text-black' : 'bg-white text-gray-800'
+                }`}
+              >
+                <MapPin size={13} />
+                <span>{isPlacementMode ? 'Assegna Alunno' : 'Modalità Esplora'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsCompactView(!isCompactView)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border-2 border-black font-black text-xs uppercase tracking-wider transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${
+                  isCompactView ? 'bg-amber-300 text-black' : 'bg-white text-gray-800'
+                }`}
+              >
+                <Tag size={13} />
+                <span>{isCompactView ? 'Compatta' : 'Nomi Estesi'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsRosterOpen(!isRosterOpen)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-300 hover:bg-yellow-400 text-black font-black text-xs uppercase tracking-wider rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+              >
+                <Users size={13} />
+                <span>Roster ({markers.length})</span>
+                {isRosterOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+              </button>
+            </div>
+          </header>
+
+          {/* Area Canvas a Schermo Intero */}
+          <div className="flex-1 w-full overflow-hidden flex relative items-center justify-center rounded-2xl bg-[#0D0D11] border-2 border-white/10">
+            <div 
+              onMouseDown={handleContainerMouseDown}
+              onMouseMove={handleContainerMouseMove}
+              onMouseUp={handleContainerMouseUp}
+              className={`w-full h-full overflow-auto p-2 sm:p-4 flex items-center justify-center custom-scrollbar ${
+                !isPlacementMode && !draggingMarkerId ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : ''
+              }`}
+            >
+              <div 
+                className={`relative inline-block transition-transform duration-150 ease-out ${
+                  fitMode === 'width' ? 'w-full origin-top' : fitMode === 'height' ? 'h-full origin-left' : 'origin-center'
+                }`}
+                style={{ transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined }}
+              >
+                <img
+                  ref={imageRef}
+                  src={imageSource}
+                  alt={activeSet?.title || 'Blob Tree'}
+                  onLoad={handleImageLoad}
+                  onClick={handleImageClick}
+                  draggable={false}
+                  style={{
+                    ...(fitMode === 'contain' ? { maxHeight: 'calc(100vh - 100px)', maxWidth: '100%', width: 'auto', height: 'auto' } : {}),
+                    ...(fitMode === 'width' ? { width: '100%', height: 'auto', maxWidth: 'none', maxHeight: 'none' } : {}),
+                    ...(fitMode === 'height' ? { height: 'calc(100vh - 100px)', width: 'auto', maxHeight: 'none', maxWidth: 'none' } : {})
+                  }}
+                  className={`object-contain rounded-xl border-3 border-black shadow-2xl bg-white block ${
+                    isPlacementMode ? 'cursor-crosshair' : 'cursor-default'
+                  }`}
+                />
+
+                {/* Rendering Segnaposto in Schermo Intero */}
+                {renderMarkers()}
+              </div>
+            </div>
+
+            {/* Roster Galleggiante in Schermo Intero */}
+            {isRosterOpen && (
+              <div className="absolute right-4 top-4 bottom-4 w-72 sm:w-80 bg-white/95 backdrop-blur-md rounded-2xl border-3 border-black shadow-2xl p-4 flex flex-col z-30 animate-in slide-in-from-right-10">
+                {renderRosterContent(true)}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
       {/* 5. MODALE / POPOVER: ASSEGNAZIONE NUOVO ALUNNO SU CLICK */}
       {/* ========================================================================= */}
       {pendingPlacement && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+        <div className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white rounded-3xl p-5 sm:p-6 max-w-md w-full border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] animate-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b-2 border-black mb-4">
               <div className="flex items-center gap-2">
@@ -870,7 +1318,7 @@ export default function BlobTreeView({
       {/* 6. MODALE MODIFICA MARKER ESISTENTE */}
       {/* ========================================================================= */}
       {editingMarker && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+        <div className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white rounded-3xl p-5 sm:p-6 max-w-md w-full border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] animate-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b-2 border-black mb-4">
               <h3 className="text-base font-black uppercase text-black">Modifica Assegnazione</h3>
@@ -958,7 +1406,7 @@ export default function BlobTreeView({
       {/* 7. MODALE RIEPILOGO & EXPORT */}
       {/* ========================================================================= */}
       {isSummaryOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+        <div className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white rounded-3xl p-6 max-w-xl w-full border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] animate-in zoom-in-95 flex flex-col max-h-[85vh]">
             <div className="flex items-center justify-between pb-3 border-b-2 border-black mb-4">
               <div className="flex items-center gap-2">
@@ -1027,7 +1475,7 @@ export default function BlobTreeView({
       {/* 9. MODALE NUOVA SESSIONE */}
       {/* ========================================================================= */}
       {isNewSessionModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+        <div className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white rounded-3xl p-6 max-w-sm w-full border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] animate-in zoom-in-95">
             <h3 className="text-base font-black uppercase text-black mb-2">Nuova Sessione Blob Tree</h3>
             <p className="text-xs text-gray-500 font-bold mb-4">
@@ -1066,7 +1514,7 @@ export default function BlobTreeView({
       {/* 10. MODALE RINOMINA SESSIONE */}
       {/* ========================================================================= */}
       {isRenameModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+        <div className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white rounded-3xl p-6 max-w-sm w-full border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] animate-in zoom-in-95">
             <h3 className="text-base font-black uppercase text-black mb-2">Rinomina Sessione</h3>
             <input
@@ -1179,7 +1627,7 @@ function BlobTreeSetManagerModal({ sets, activeSetId, onSelectSet, onUpdateState
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+    <div className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
       <div className="bg-white rounded-3xl p-6 max-w-2xl w-full border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] animate-in zoom-in-95 flex flex-col max-h-[90vh]">
         <div className="flex items-center justify-between pb-3 border-b-2 border-black mb-4">
           <div className="flex items-center gap-2">

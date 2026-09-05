@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
-  ArrowLeft, Search, X, Plus, Trash2, Edit, Copy, Check, 
+  ArrowLeft, ArrowRight, Search, X, Plus, Trash2, Edit, Copy, Check, 
   ChevronLeft, ChevronRight, Maximize2, Users, Sparkles, 
   Filter, Grid, LayoutGrid, Download, RefreshCw, FileText,
   SlidersHorizontal, CheckCircle2, Settings, EyeOff, Trees,
@@ -100,14 +100,8 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack, db, us
   // Roster di tutti gli studenti in questa sessione
   const sessionRoster = useMemo(() => getSessionStudentRoster(activeSession), [activeSession]);
 
-  // Tab attiva (fotolinguaggio vs blob_tree)
-  const activeTab = vmState.activeTab || 'photolanguage';
-  const handleTabChange = (tab) => {
-    updateVmState(prev => ({
-      ...prev,
-      activeTab: tab
-    }));
-  };
+  // Sezione attiva: null (Hub iniziale di selezione), 'photolanguage', 'blob_tree'
+  const [selectedSection, setSelectedSection] = useState(null);
 
   // Aggiorna lo stato globale
   const updateVmState = (updater) => {
@@ -328,21 +322,20 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack, db, us
     URL.revokeObjectURL(url);
   };
 
-  return (
-    <div className="min-h-screen bg-[#FDFBF7] p-3 sm:p-6 font-sans selection:bg-yellow-200 flex flex-col">
-      
-      {/* ========================================================================= */}
-      {/* 1. BARRA SUPERIORE DI CONTROLLO & CATTEDRA */}
-      {/* ========================================================================= */}
-      <nav className="max-w-7xl mx-auto w-full mb-6 flex flex-wrap items-center justify-between gap-4">
-        {/* Sinistra: Torna alla Dashboard */}
-        <div className="flex items-center gap-3">
+  // -------------------------------------------------------------------------
+  // 1. SCHERMATA HUB INIZIALE DI SELEZIONE: DIVISA TRA FOTOLINGUAGGIO E BLOB TREES
+  // -------------------------------------------------------------------------
+  if (!selectedSection) {
+    return (
+      <div className="min-h-screen bg-[#FDFBF7] p-4 sm:p-8 md:p-12 font-sans selection:bg-yellow-200 flex flex-col">
+        {/* Barra Superiore: Torna alla Dashboard */}
+        <div className="max-w-5xl mx-auto w-full mb-8 flex items-center justify-between">
           <button 
             onClick={onBack} 
             className="flex items-center gap-2 font-black text-sm text-black bg-white hover:bg-yellow-300 px-4 py-2.5 rounded-2xl border-3 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer"
           >
             <ArrowLeft size={18} />
-            <span className="hidden sm:inline">Dashboard</span>
+            <span>Dashboard</span>
           </button>
 
           <div className="flex items-center gap-2 bg-indigo-100 border-3 border-black px-4 py-2 rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
@@ -351,149 +344,273 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack, db, us
           </div>
         </div>
 
-        {/* Centro: Switcher a Schede Neo-Brutalista (Fotolinguaggio vs Blob Trees) */}
-        <div className="flex items-center bg-white p-1 rounded-2xl border-3 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
-          <button
-            type="button"
-            onClick={() => handleTabChange('photolanguage')}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider transition-all cursor-pointer ${
-              activeTab === 'photolanguage'
-                ? 'bg-yellow-300 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
-                : 'text-gray-600 hover:text-black hover:bg-gray-100'
-            }`}
+        {/* Hero Hub Neo-Brutalista */}
+        <div className="max-w-4xl mx-auto w-full flex-1 flex flex-col items-center justify-center text-center my-auto py-4">
+          <div className="bg-indigo-300 p-5 rounded-3xl mb-4 border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] animate-in zoom-in-95">
+            <Sparkles size={48} className="text-black stroke-[2.5]" />
+          </div>
+
+          <h1 className="text-3xl sm:text-5xl font-black mb-3 text-black tracking-tight">
+            Metafore Visive &amp; Proiezioni
+          </h1>
+          <p className="text-gray-700 font-bold mb-10 max-w-2xl text-sm sm:text-base leading-relaxed">
+            Scegli lo strumento visivo per facilitare l'espressione, la consapevolezza emotiva e la narrazione di sé nel gruppo classe.
+          </p>
+
+          {/* Due Grandi Carte di Scelta Neo-Brutaliste */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 w-full text-left">
+            
+            {/* CARTA 1: FOTOLINGUAGGIO */}
+            <div 
+              onClick={() => setSelectedSection('photolanguage')}
+              className="bg-yellow-50 hover:bg-yellow-100/90 rounded-3xl border-4 border-black p-6 sm:p-8 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 transition-all flex flex-col justify-between cursor-pointer group"
+            >
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-14 h-14 rounded-2xl bg-black text-yellow-300 flex items-center justify-center border-2 border-black shadow-xs group-hover:scale-105 transition-transform">
+                    <ImageIcon size={30} className="stroke-[2.5]" />
+                  </div>
+                  <span className="bg-yellow-300 border-2 border-black font-black text-[11px] uppercase tracking-wider px-3 py-1 rounded-full shadow-xs">
+                    60 Fotografie
+                  </span>
+                </div>
+
+                <h3 className="text-2xl font-black text-black mb-2 group-hover:text-yellow-950 transition-colors">
+                  Fotolinguaggio
+                </h3>
+                <p className="text-gray-700 font-bold text-xs sm:text-sm leading-relaxed mb-6">
+                  Collezione di fotografie simboliche ed evocative. Ogni alunno sceglie le immagini che meglio esprimono le proprie emozioni o vissuti e ne condivide il significato.
+                </p>
+
+                <div className="space-y-2.5 mb-6">
+                  <div className="flex items-center gap-2 text-xs font-bold text-gray-800">
+                    <span className="text-base">📸</span>
+                    <span>Set ETP a 60 foto d'autore + set personalizzati</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs font-bold text-gray-800">
+                    <span className="text-base">🏷️</span>
+                    <span>Assegnazione studenti &amp; note per immagine</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs font-bold text-gray-800">
+                    <span className="text-base">📊</span>
+                    <span>Riepilogo scelte ed esportazione classe</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="w-full py-3.5 bg-yellow-300 group-hover:bg-yellow-400 text-black border-2 border-black rounded-2xl font-black text-xs sm:text-sm uppercase tracking-wider text-center shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center gap-2 transition-colors">
+                <span>Entra in Fotolinguaggio</span>
+                <ArrowRight size={16} className="stroke-[3]" />
+              </div>
+            </div>
+
+            {/* CARTA 2: BLOB TREES */}
+            <div 
+              onClick={() => setSelectedSection('blob_tree')}
+              className="bg-emerald-50 hover:bg-emerald-100/90 rounded-3xl border-4 border-black p-6 sm:p-8 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 transition-all flex flex-col justify-between cursor-pointer group"
+            >
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-14 h-14 rounded-2xl bg-black text-emerald-300 flex items-center justify-center border-2 border-black shadow-xs group-hover:scale-105 transition-transform">
+                    <Trees size={30} className="stroke-[2.5]" />
+                  </div>
+                  <span className="bg-emerald-300 border-2 border-black font-black text-[11px] uppercase tracking-wider px-3 py-1 rounded-full shadow-xs">
+                    Interattivo &amp; LIM
+                  </span>
+                </div>
+
+                <h3 className="text-2xl font-black text-black mb-2 group-hover:text-emerald-950 transition-colors">
+                  Blob Trees
+                </h3>
+                <p className="text-gray-700 font-bold text-xs sm:text-sm leading-relaxed mb-6">
+                  Illustrazioni simboliche con omini (Blob Figures). Proietta l'albero a tutto schermo, clicca sui personaggi e posiziona i pin per mappare dove si identifica ciascun alunno.
+                </p>
+
+                <div className="space-y-2.5 mb-6">
+                  <div className="flex items-center gap-2 text-xs font-bold text-gray-800">
+                    <span className="text-base">🌳</span>
+                    <span>Albero classico, percorsi in salita e scenari custom</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs font-bold text-gray-800">
+                    <span className="text-base">📍</span>
+                    <span>Pin interattivi con drag &amp; drop e appunti</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs font-bold text-gray-800">
+                    <span className="text-base">🖥️</span>
+                    <span>Tutto schermo LIM per landscape e illustrazioni verticali</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="w-full py-3.5 bg-emerald-300 group-hover:bg-emerald-400 text-black border-2 border-black rounded-2xl font-black text-xs sm:text-sm uppercase tracking-wider text-center shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center gap-2 transition-colors">
+                <span>Entra nei Blob Trees</span>
+                <ArrowRight size={16} className="stroke-[3]" />
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // 2. BLOB TREES SUB-VIEW
+  // -------------------------------------------------------------------------
+  if (selectedSection === 'blob_tree') {
+    return (
+      <BlobTreeView
+        vmState={vmState}
+        onUpdateVmState={updateVmState}
+        onBack={() => setSelectedSection(null)}
+        onBackToDashboard={onBack}
+        db={db}
+        user={user}
+        appId={appId}
+      />
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // 3. FOTOLINGUAGGIO SUB-VIEW
+  // -------------------------------------------------------------------------
+  return (
+    <div className="min-h-screen bg-[#FDFBF7] p-3 sm:p-6 font-sans selection:bg-yellow-200 flex flex-col">
+      
+      {/* ========================================================================= */}
+      {/* 1. BARRA SUPERIORE DI CONTROLLO & CATTEDRA (FOTOLINGUAGGIO) */}
+      {/* ========================================================================= */}
+      <nav className="max-w-7xl mx-auto w-full mb-6 flex flex-wrap items-center justify-between gap-4">
+        {/* Sinistra: Torna alle Metafore Visive o Dashboard */}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <button 
+            onClick={() => setSelectedSection(null)} 
+            className="flex items-center gap-2 font-black text-sm text-black bg-white hover:bg-yellow-300 px-4 py-2.5 rounded-2xl border-3 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer"
+            title="Torna alla scelta delle attività di Metafore Visive"
           >
-            <ImageIcon size={15} />
-            <span>Fotolinguaggio</span>
+            <ArrowLeft size={18} />
+            <span>Metafore Visive</span>
           </button>
+
+          <button 
+            onClick={onBack} 
+            className="font-bold text-xs text-gray-600 hover:text-black hover:bg-gray-100 px-3 py-2 rounded-xl border-2 border-black/20 hover:border-black transition-all cursor-pointer hidden sm:inline-block"
+            title="Torna alla Dashboard principale"
+          >
+            Dashboard
+          </button>
+
+          <div className="flex items-center gap-2 bg-yellow-100 border-3 border-black px-3.5 py-2 rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+            <ImageIcon size={18} className="text-yellow-900" />
+            <span className="font-black text-xs uppercase tracking-wider text-yellow-950">Fotolinguaggio</span>
+          </div>
 
           <button
             type="button"
-            onClick={() => handleTabChange('blob_tree')}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider transition-all cursor-pointer ${
-              activeTab === 'blob_tree'
-                ? 'bg-emerald-400 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
-                : 'text-gray-600 hover:text-black hover:bg-gray-100'
-            }`}
+            onClick={() => setSelectedSection('blob_tree')}
+            className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-emerald-100 text-gray-700 hover:text-black border-2 border-black rounded-xl font-black text-xs uppercase tracking-wider shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all"
+            title="Passa all'attività Blob Trees"
           >
-            <Trees size={15} />
-            <span>Blob Trees</span>
-            <span className="text-[9px] font-black bg-black text-yellow-300 px-1.5 py-0.2 rounded-md uppercase">Nuovo</span>
+            <Trees size={14} className="text-emerald-700" />
+            <span className="hidden md:inline">Passa a</span>
+            <span>Blob Trees →</span>
           </button>
         </div>
 
-        {/* Destra: Selettore Sessioni & Azioni solo se in Fotolinguaggio, altrimenti solo Fullscreen */}
-        {activeTab === 'photolanguage' ? (
-          <div className="flex items-center gap-2.5 flex-wrap">
-            {/* Selettore Set di Immagini */}
-            <div className="flex items-center gap-1.5 bg-white border-2 border-black rounded-xl px-3 py-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-              <span className="text-[11px] font-black uppercase text-gray-500">Set:</span>
-              <select
-                value={vmState.activeSetId}
-                onChange={(e) => updateVmState(prev => ({ ...prev, activeSetId: e.target.value }))}
-                className="bg-transparent font-black text-xs text-black outline-none cursor-pointer"
-              >
-                {vmState.sets.map(s => (
+        {/* Destra: Selettore Sessioni & Azioni */}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {/* Selettore Set di Immagini */}
+          <div className="flex items-center gap-1.5 bg-white border-2 border-black rounded-xl px-3 py-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+            <span className="text-[11px] font-black uppercase text-gray-500">Set:</span>
+            <select
+              value={vmState.activeSetId}
+              onChange={(e) => updateVmState(prev => ({ ...prev, activeSetId: e.target.value }))}
+              className="bg-transparent font-black text-xs text-black outline-none cursor-pointer"
+            >
+              {vmState.sets.map(s => (
+                <option key={s.id} value={s.id}>
+                  {s.title} ({s.count} foto)
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Pulsante Gestisci Set */}
+          <button
+            type="button"
+            onClick={() => setIsManagerOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-yellow-300 text-black border-2 border-black rounded-xl font-black text-xs uppercase tracking-wider shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer"
+            title="Gestisci i set di immagini, carica nuove foto o nascondi immagini"
+          >
+            <Settings size={14} />
+            <span className="hidden sm:inline">Gestisci Set</span>
+          </button>
+
+          {/* Selettore Sessione & Gestione */}
+          <div className="flex items-center gap-1 bg-yellow-100 border-2 border-black rounded-xl p-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+            <span className="text-[11px] font-black uppercase text-yellow-950 px-2 flex items-center gap-1">
+              <Users size={13} />
+              <span className="hidden md:inline">Sessione:</span>
+            </span>
+            <select
+              value={vmState.activeSessionId}
+              onChange={(e) => updateVmState(prev => ({ ...prev, activeSessionId: e.target.value }))}
+              className="bg-white border-2 border-black rounded-lg px-2.5 py-1 font-black text-xs text-black outline-none cursor-pointer"
+            >
+              {vmState.sessions.map(s => {
+                const count = Object.keys(s.assignments || {}).length;
+                return (
                   <option key={s.id} value={s.id}>
-                    {s.title} ({s.count} foto)
+                    {s.name} ({count} scelte)
                   </option>
-                ))}
-              </select>
-            </div>
+                );
+              })}
+            </select>
 
-            {/* Pulsante Gestisci Set */}
+            {/* Azioni Sessione: Rinomina, Nuova, Reset */}
             <button
-              type="button"
-              onClick={() => setIsManagerOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-yellow-300 text-black border-2 border-black rounded-xl font-black text-xs uppercase tracking-wider shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer"
-              title="Gestisci i set di immagini, carica nuove foto o nascondi immagini"
+              onClick={() => {
+                setRenameValue(activeSession.name);
+                setIsRenameModalOpen(true);
+              }}
+              className="p-1.5 hover:bg-yellow-200 text-black rounded-lg transition-colors"
+              title="Rinomina questa sessione"
             >
-              <Settings size={14} />
-              <span className="hidden sm:inline">Gestisci Set</span>
+              <Edit size={14} />
             </button>
-
-            {/* Selettore Sessione & Gestione */}
-            <div className="flex items-center gap-1 bg-yellow-100 border-2 border-black rounded-xl p-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-              <span className="text-[11px] font-black uppercase text-yellow-950 px-2 flex items-center gap-1">
-                <Users size={13} />
-                <span className="hidden md:inline">Sessione:</span>
-              </span>
-              <select
-                value={vmState.activeSessionId}
-                onChange={(e) => updateVmState(prev => ({ ...prev, activeSessionId: e.target.value }))}
-                className="bg-white border-2 border-black rounded-lg px-2.5 py-1 font-black text-xs text-black outline-none cursor-pointer"
-              >
-                {vmState.sessions.map(s => {
-                  const count = Object.keys(s.assignments || {}).length;
-                  return (
-                    <option key={s.id} value={s.id}>
-                      {s.name} ({count} scelte)
-                    </option>
-                  );
-                })}
-              </select>
-
-              {/* Azioni Sessione: Rinomina, Nuova, Reset */}
-              <button
-                onClick={() => {
-                  setRenameValue(activeSession.name);
-                  setIsRenameModalOpen(true);
-                }}
-                className="p-1.5 hover:bg-yellow-200 text-black rounded-lg transition-colors"
-                title="Rinomina questa sessione"
-              >
-                <Edit size={14} />
-              </button>
-              <button
-                onClick={() => setIsNewSessionModalOpen(true)}
-                className="p-1.5 hover:bg-yellow-200 text-black rounded-lg transition-colors font-black flex items-center gap-1 text-xs"
-                title="Crea una nuova sessione (es. per un'altra classe)"
-              >
-                <Plus size={15} className="stroke-[3]" />
-              </button>
-              <button
-                onClick={handleResetCurrentSession}
-                className="p-1.5 hover:bg-rose-100 text-rose-700 rounded-lg transition-colors"
-                title="Azzera le scelte di questa sessione"
-              >
-                <RefreshCw size={13} />
-              </button>
-            </div>
-
-            {/* Tasto Riepilogo Scelte con Badge */}
             <button
-              onClick={() => setIsSummaryOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-yellow-300 hover:bg-yellow-400 text-black font-black text-xs uppercase tracking-wider rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all"
-              title="Visualizza o esporta il riepilogo delle scelte degli studenti"
+              onClick={() => setIsNewSessionModalOpen(true)}
+              className="p-1.5 hover:bg-yellow-200 text-black rounded-lg transition-colors font-black flex items-center gap-1 text-xs"
+              title="Crea una nuova sessione (es. per un'altra classe)"
             >
-              <FileText size={14} />
-              <span>Riepilogo</span>
-              <span className="bg-black text-white px-1.5 py-0.2 rounded-md font-mono text-[11px] ml-0.5">
-                {chosenCount}
-              </span>
+              <Plus size={15} className="stroke-[3]" />
             </button>
+            <button
+              onClick={handleResetCurrentSession}
+              className="p-1.5 hover:bg-rose-100 text-rose-700 rounded-lg transition-colors"
+              title="Azzera le scelte di questa sessione"
+            >
+              <RefreshCw size={13} />
+            </button>
+          </div>
 
-            {/* Schermo Intero */}
-            <FullscreenButton className="border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] rounded-xl" />
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <FullscreenButton className="border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] rounded-xl" />
-          </div>
-        )}
+          {/* Tasto Riepilogo Scelte con Badge */}
+          <button
+            onClick={() => setIsSummaryOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-yellow-300 hover:bg-yellow-400 text-black font-black text-xs uppercase tracking-wider rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all"
+            title="Visualizza o esporta il riepilogo delle scelte degli studenti"
+          >
+            <FileText size={14} />
+            <span>Riepilogo</span>
+            <span className="bg-black text-white px-1.5 py-0.2 rounded-md font-mono text-[11px] ml-0.5">
+              {chosenCount}
+            </span>
+          </button>
+
+          {/* Schermo Intero */}
+          <FullscreenButton className="border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] rounded-xl" />
+        </div>
       </nav>
-
-      {/* RENDER CONDIZIONALE BLOB TREES vs FOTOLINGUAGGIO */}
-      {activeTab === 'blob_tree' ? (
-        <BlobTreeView
-          vmState={vmState}
-          onUpdateVmState={updateVmState}
-          onBack={onBack}
-          db={db}
-          user={user}
-          appId={appId}
-        />
-      ) : (
-        <>
       {/* ========================================================================= */}
       {/* 2. HERO / BARRA FILTRI & CONTROLLI GRIGLIA */}
       {/* ========================================================================= */}
@@ -1122,9 +1239,6 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack, db, us
           appId={appId}
         />
       )}
-        </>
-      )}
-
     </div>
   );
 }
