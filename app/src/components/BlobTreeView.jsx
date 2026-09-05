@@ -23,7 +23,9 @@ import {
 import { 
   saveCustomImage, 
   getCachedImage, 
-  createThumbnail 
+  createThumbnail,
+  resolveBlobImageSrc,
+  syncImageToFirestore
 } from '../lib/customImageStorage';
 
 // Palette colori neo-brutalisti per i segnaposto
@@ -405,12 +407,7 @@ export default function BlobTreeView({
 
   // Risoluzione URL immagine corrente
   const imageSource = useMemo(() => {
-    if (!activeSet) return '';
-    if (activeSet.customImageId) {
-      const cached = getCachedImage(activeSet.customImageId);
-      if (cached) return cached;
-    }
-    return activeSet.imageSrc || activeSet.thumbnailSrc || '';
+    return resolveBlobImageSrc(activeSet);
   }, [activeSet]);
 
   // -------------------------------------------------------------------------
@@ -1468,6 +1465,9 @@ export default function BlobTreeView({
           }}
           onUpdateState={updateState}
           onClose={() => setIsSetManagerOpen(false)}
+          db={db}
+          user={user}
+          appId={appId}
         />
       )}
 
@@ -1553,7 +1553,7 @@ export default function BlobTreeView({
 // =================================================================================
 // SUB-MODALE PER LA GESTIONE DEGLI SCENARI E UPLOAD IMMAGINI BLOB
 // =================================================================================
-function BlobTreeSetManagerModal({ sets, activeSetId, onSelectSet, onUpdateState, onClose }) {
+function BlobTreeSetManagerModal({ sets, activeSetId, onSelectSet, onUpdateState, onClose, db, user, appId }) {
   const [isUploading, setIsUploading] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newSubtitle, setNewSubtitle] = useState('');
@@ -1591,9 +1591,14 @@ function BlobTreeSetManagerModal({ sets, activeSetId, onSelectSet, onUpdateState
 
     setIsUploading(true);
     try {
-      const customId = `cimg_blob_${Date.now()}`;
+      const customId = `cimg_blob_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
       await saveCustomImage(customId, previewDataUrl);
-      const thumb = await createThumbnail(previewDataUrl, 240);
+
+      if (db && user && appId) {
+        syncImageToFirestore(db, user, appId, customId, previewDataUrl).catch((err) => {
+          console.warn('Sync cloud immagine blob non riuscito:', err);
+        });
+      }
 
       onUpdateState(prev => createBlobTreeSet(prev, {
         title: trimmedTitle,
@@ -1601,7 +1606,7 @@ function BlobTreeSetManagerModal({ sets, activeSetId, onSelectSet, onUpdateState
         description: 'Scenario personalizzato caricato dal docente.',
         imageSrc: previewDataUrl,
         customImageId: customId,
-        thumbnailSrc: thumb
+        thumbnailSrc: null
       }));
 
       onClose();
@@ -1726,7 +1731,7 @@ function BlobTreeSetManagerModal({ sets, activeSetId, onSelectSet, onUpdateState
             <div className="space-y-2.5">
               {sets.map(s => {
                 const isActive = s.id === activeSetId;
-                const imgSrc = s.customImageId ? (getCachedImage(s.customImageId) || s.thumbnailSrc) : s.imageSrc;
+                const imgSrc = resolveBlobImageSrc(s);
 
                 return (
                   <div

@@ -19,7 +19,10 @@ import {
   loadAllCustomImages, 
   hydrateVisualMetaphors, 
   getCachedImage, 
-  fetchImageFromFirestore 
+  fetchImageFromFirestore,
+  ensureImageLoaded,
+  resolveImageSrc,
+  resolveBlobImageSrc
 } from '../lib/customImageStorage';
 
 export default function VisualMetaphorsView({ data, onUpdateData, onBack, db, user, appId }) {
@@ -40,27 +43,43 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack, db, us
     return hydrateVisualMetaphors(raw);
   }, [data]);
 
-  // Se siamo collegati a Firestore, controlla se ci sono immagini custom da scaricare dal cloud
+  // Assicura che le immagini custom siano caricate in memoria (IndexedDB prima, poi Cloud Firestore)
   useEffect(() => {
-    if (!db || !appId || !vmState?.sets) return;
-    vmState.sets.forEach(s => {
-      (s.images || []).forEach(img => {
-        if (img.customImageId && !getCachedImage(img.customImageId)) {
-          fetchImageFromFirestore(db, appId, img.customImageId).then(dataUrl => {
-            if (dataUrl) setForceUpdate(k => k + 1);
-          });
-        }
-      });
-    });
+    if (!vmState?.sets) return;
+    let cancelled = false;
 
-    // Controllo anche per i set di Blob Tree
-    (vmState.blobTree?.sets || []).forEach(bs => {
-      if (bs.customImageId && !getCachedImage(bs.customImageId)) {
-        fetchImageFromFirestore(db, appId, bs.customImageId).then(dataUrl => {
-          if (dataUrl) setForceUpdate(k => k + 1);
-        });
+    const loadMissingImages = async () => {
+      let anyLoaded = false;
+
+      // 1. Fotolinguaggio
+      for (const s of vmState.sets) {
+        for (const img of (s.images || [])) {
+          if (img.customImageId && !getCachedImage(img.customImageId)) {
+            const dataUrl = await ensureImageLoaded(img.customImageId, db, appId);
+            if (dataUrl && !cancelled) {
+              anyLoaded = true;
+            }
+          }
+        }
       }
-    });
+
+      // 2. Scenari Blob Tree
+      for (const bs of (vmState.blobTree?.sets || [])) {
+        if (bs.customImageId && !getCachedImage(bs.customImageId)) {
+          const dataUrl = await ensureImageLoaded(bs.customImageId, db, appId);
+          if (dataUrl && !cancelled) {
+            anyLoaded = true;
+          }
+        }
+      }
+
+      if (anyLoaded && !cancelled) {
+        setForceUpdate(k => k + 1);
+      }
+    };
+
+    loadMissingImages();
+    return () => { cancelled = true; };
   }, [db, appId, vmState]);
 
   const activeSet = useMemo(() => {
@@ -765,7 +784,7 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack, db, us
                     className="relative w-full aspect-[4/3] bg-gray-100 cursor-pointer overflow-hidden border-b-2 border-black"
                   >
                     <img
-                      src={img.src || (img.customImageId ? getCachedImage(img.customImageId) : null) || img.thumbnailSrc || ''}
+                      src={resolveImageSrc(img)}
                       alt={img.alt}
                       loading="lazy"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
@@ -881,7 +900,7 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack, db, us
           {/* Area Immagine Centrale ad Alta Risoluzione */}
           <div className="flex-1 flex items-center justify-center min-h-0 relative py-2">
             <img
-              src={lightboxImage.src || (lightboxImage.customImageId ? getCachedImage(lightboxImage.customImageId) : null) || lightboxImage.thumbnailSrc || ''}
+              src={resolveImageSrc(lightboxImage)}
               alt={lightboxImage.alt}
               className="max-h-full max-w-full object-contain rounded-2xl border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] bg-white"
             />
@@ -1041,7 +1060,7 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack, db, us
                         <div className="flex items-center gap-3">
                           {img && (
                             <img
-                              src={img.src}
+                              src={resolveImageSrc(img)}
                               alt={img.alt}
                               className="w-14 h-10 object-cover rounded-lg border-2 border-black shadow-xs shrink-0 cursor-pointer"
                               onClick={() => {

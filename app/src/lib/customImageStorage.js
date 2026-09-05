@@ -38,7 +38,6 @@ export async function saveCustomImage(id, dataUrl) {
   if (!id || !dataUrl) return;
   memoryCache.set(id, dataUrl);
 
-  // Prova a salvare anche in localStorage una copia di backup per set se piccola
   try {
     const db = await openDB();
     return new Promise((resolve, reject) => {
@@ -110,7 +109,7 @@ export async function loadAllCustomImages() {
 }
 
 /**
- * Cancella un'immagine personalizzata da IndexedDB
+ * Cancella un'immagine personalizzata da IndexedDB e memoria
  */
 export async function deleteCustomImage(id) {
   if (!id) return;
@@ -135,8 +134,87 @@ export function getCachedImage(id) {
 }
 
 /**
+ * Assicura che un'immagine custom sia caricata in memoryCache,
+ * cercando in ordine: 1) memoryCache, 2) IndexedDB, 3) Firestore subcollection
+ */
+export async function ensureImageLoaded(customId, db, appId) {
+  if (!customId) return null;
+  if (memoryCache.has(customId)) {
+    return memoryCache.get(customId);
+  }
+
+  // 1. Prova IndexedDB locale
+  const localData = await getCustomImage(customId);
+  if (localData) {
+    memoryCache.set(customId, localData);
+    return localData;
+  }
+
+  // 2. Se non presente in locale e Firebase è connesso, scarica dal Cloud
+  if (db && appId) {
+    const cloudData = await fetchImageFromFirestore(db, appId, customId);
+    if (cloudData) {
+      memoryCache.set(customId, cloudData);
+      saveCustomImage(customId, cloudData).catch(() => {});
+      return cloudData;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Risolve la sorgente visiva ottimale per un'immagine (Fotolinguaggio).
+ * Garantisce che un riferimento 'custom:...' non venga MAI passato grezzo a <img src>,
+ * restituendo il dataUrl reale dalla cache o il percorso statico valido.
+ */
+export function resolveImageSrc(img) {
+  if (!img) return '';
+
+  // 1. Se ha customImageId ed è presente in memoryCache
+  if (img.customImageId) {
+    const cached = memoryCache.get(img.customImageId);
+    if (cached) return cached;
+  }
+
+  // 2. Se src è una stringa valida (data:, http:, https:, percorsi relativi o blob:)
+  if (typeof img.src === 'string' && img.src && !img.src.startsWith('custom:')) {
+    return img.src;
+  }
+
+  // 3. Fallback a thumbnailSrc se valido e non 'custom:'
+  if (typeof img.thumbnailSrc === 'string' && img.thumbnailSrc && !img.thumbnailSrc.startsWith('custom:')) {
+    return img.thumbnailSrc;
+  }
+
+  return '';
+}
+
+/**
+ * Risolve la sorgente visiva ottimale per uno scenario Blob Tree.
+ */
+export function resolveBlobImageSrc(scenario) {
+  if (!scenario) return '';
+
+  if (scenario.customImageId) {
+    const cached = memoryCache.get(scenario.customImageId);
+    if (cached) return cached;
+  }
+
+  if (typeof scenario.imageSrc === 'string' && scenario.imageSrc && !scenario.imageSrc.startsWith('custom:')) {
+    return scenario.imageSrc;
+  }
+
+  if (typeof scenario.thumbnailSrc === 'string' && scenario.thumbnailSrc && !scenario.thumbnailSrc.startsWith('custom:')) {
+    return scenario.thumbnailSrc;
+  }
+
+  return '';
+}
+
+/**
  * Ripristina ('idrata') le immagini complete in uno stato visual_metaphors
- * sostituendo i placeholder o thumbnail con i dati completi da IndexedDB.
+ * sostituendo i riferimenti 'custom:{id}' con le immagini complete in memoria.
  */
 export function hydrateVisualMetaphors(vmState) {
   if (!vmState) return vmState;
@@ -152,9 +230,9 @@ export function hydrateVisualMetaphors(vmState) {
       const updatedImages = s.images.map((img) => {
         if (img.customImageId) {
           const cached = memoryCache.get(img.customImageId);
-          if (cached && (!img.src || img.src.startsWith('custom:') || img.src === img.thumbnailSrc)) {
+          if (cached && (!img.src || img.src.startsWith('custom:') || img.src !== cached)) {
             setChanged = true;
-            return { ...img, src: cached };
+            return { ...img, src: cached, thumbnailSrc: cached };
           }
         }
         return img;
@@ -175,9 +253,9 @@ export function hydrateVisualMetaphors(vmState) {
     const hydratedBlobSets = vmState.blobTree.sets.map((bs) => {
       if (bs.customImageId) {
         const cached = memoryCache.get(bs.customImageId);
-        if (cached && (!bs.imageSrc || bs.imageSrc.startsWith('custom:') || bs.imageSrc === bs.thumbnailSrc)) {
+        if (cached && (!bs.imageSrc || bs.imageSrc.startsWith('custom:') || bs.imageSrc !== cached)) {
           blobChanged = true;
-          return { ...bs, imageSrc: cached };
+          return { ...bs, imageSrc: cached, thumbnailSrc: cached };
         }
       }
       return bs;
@@ -194,8 +272,8 @@ export function hydrateVisualMetaphors(vmState) {
 
 /**
  * Sanitizza l'intero payload 'data' prima di salvarlo nel documento 'main_db' di Firestore.
- * Sostituisce le enormi stringhe base64 delle immagini caricate con piccoli thumbnail (~3-5KB)
- * o identificatori leggeri 'custom:{id}', evitando il superamento del limite di 1MB di Firestore.
+ * Sostituisce TOTALMENTE le stringhe base64 delle immagini caricate con identificatori leggeri 'custom:{id}',
+ * evitando al 100% il superamento del limite di 1MB di Firestore (payload di soli pochi KB).
  */
 export function sanitizeDataForFirestore(data) {
   if (!data || typeof data !== 'object') return data;
@@ -209,22 +287,25 @@ export function sanitizeDataForFirestore(data) {
       if (!Array.isArray(s.images)) return s;
 
       const sanitizedImages = s.images.map((img) => {
-        // Se l'immagine è personalizzata (ha customImageId o è un dataUrl)
-        if (img.customImageId || (img.src && img.src.startsWith('data:image/'))) {
-          const customId = img.customImageId || `cimg_${img.id || Date.now()}`;
+        // Se l'immagine è personalizzata (ha customImageId o è un dataUrl base64)
+        if (img.customImageId || (typeof img.src === 'string' && img.src.startsWith('data:image/'))) {
+          const customId = img.customImageId || `cimg_${img.id || Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
           
           // Mantieni sempre in memory cache l'immagine ad alta risoluzione
-          if (img.src && img.src.startsWith('data:image/')) {
+          if (typeof img.src === 'string' && img.src.startsWith('data:image/')) {
             memoryCache.set(customId, img.src);
-            // Salva in background su IndexedDB
             saveCustomImage(customId, img.src).catch(() => {});
           }
 
           return {
-            ...img,
+            id: img.id,
+            number: img.number,
+            title: img.title || `Immagine #${img.number || img.id || 1}`,
+            alt: img.alt || `Immagine #${img.number || img.id || 1}`,
+            hidden: Boolean(img.hidden),
             customImageId: customId,
-            // Nel documento Firestore principale salviamo il micro-thumbnail o il riferimento per restare sotto 1MB
-            src: img.thumbnailSrc || `custom:${customId}`
+            src: `custom:${customId}`,
+            thumbnailSrc: null
           };
         }
         return img;
@@ -237,18 +318,22 @@ export function sanitizeDataForFirestore(data) {
   let sanitizedBlobTree = vm.blobTree;
   if (vm.blobTree && Array.isArray(vm.blobTree.sets)) {
     const sanitizedBlobSets = vm.blobTree.sets.map((bs) => {
-      if (bs.customImageId || (bs.imageSrc && bs.imageSrc.startsWith('data:image/'))) {
-        const customId = bs.customImageId || `cimg_blob_${bs.id || Date.now()}`;
+      if (bs.customImageId || (typeof bs.imageSrc === 'string' && bs.imageSrc.startsWith('data:image/'))) {
+        const customId = bs.customImageId || `cimg_blob_${bs.id || Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
-        if (bs.imageSrc && bs.imageSrc.startsWith('data:image/')) {
+        if (typeof bs.imageSrc === 'string' && bs.imageSrc.startsWith('data:image/')) {
           memoryCache.set(customId, bs.imageSrc);
           saveCustomImage(customId, bs.imageSrc).catch(() => {});
         }
 
         return {
-          ...bs,
+          id: bs.id,
+          title: bs.title || '',
+          subtitle: bs.subtitle || '',
+          description: bs.description || '',
           customImageId: customId,
-          imageSrc: bs.thumbnailSrc || `custom:${customId}`
+          imageSrc: `custom:${customId}`,
+          thumbnailSrc: null
         };
       }
       return bs;
@@ -344,4 +429,3 @@ export function createThumbnail(dataUrl, maxDim = 180) {
     img.src = dataUrl;
   });
 }
-

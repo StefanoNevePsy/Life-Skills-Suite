@@ -2556,8 +2556,10 @@ export default function App() {
     if (db && user) {
       try {
         const firestoreData = sanitizeDataForFirestore(hydratedData);
+        // Pulizia completa di undefined che farebbe fallire setDoc()
+        const cleanPayload = JSON.parse(JSON.stringify(firestoreData));
         const docRef = doc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'lifeskills'), 'main_db');
-        await setDoc(docRef, firestoreData);
+        await setDoc(docRef, cleanPayload);
       } catch (err) {
         console.error('Errore durante salvataggio su Firestore:', err);
       }

@@ -16,3 +16,6 @@ node_modules/
 # Raw backup files (assets are extracted inside public/thermometer)
 *.backup_*.json
 termometro_emozioni_backup_*.json
+
+# Source assets folder
+FotoLinguaggio/

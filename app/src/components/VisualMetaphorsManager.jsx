@@ -1,8 +1,8 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { 
   X, Plus, Eye, EyeOff, Trash2, Edit2, Copy, Star, 
   Layers, Upload, Check, AlertTriangle, Image as ImageIcon,
-  Sparkles, CheckCircle2, SlidersHorizontal, ArrowLeft
+  Sparkles, CheckCircle2, SlidersHorizontal, ArrowLeft, Loader2
 } from 'lucide-react';
 import { 
   createImageSet, 
@@ -12,9 +12,16 @@ import {
   toggleImageVisibility, 
   setAllImagesVisibility, 
   addImageToSet, 
+  addMultipleImagesToSet,
   removeImageFromSet 
 } from '../data/visualMetaphorsData';
-import { saveCustomImage, getCachedImage, syncImageToFirestore } from '../lib/customImageStorage';
+import { 
+  saveCustomImage, 
+  getCachedImage, 
+  syncImageToFirestore,
+  ensureImageLoaded,
+  resolveImageSrc
+} from '../lib/customImageStorage';
 
 export default function VisualMetaphorsManager({ 
   vmState, 
@@ -24,9 +31,14 @@ export default function VisualMetaphorsManager({
   user,
   appId
 }) {
+  const [, setForceUpdate] = useState(0);
   const [selectedSetId, setSelectedSetId] = useState(vmState.activeSetId || vmState.sets[0]?.id);
   const [filterMode, setFilterMode] = useState('all'); // 'all' | 'visible' | 'hidden'
   const [feedback, setFeedback] = useState(null);
+
+  // Stato caricamento immagini
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
 
   // Modali Set
   const [isNewSetModalOpen, setIsNewSetModalOpen] = useState(false);
@@ -49,6 +61,18 @@ export default function VisualMetaphorsManager({
   const currentSet = useMemo(() => {
     return vmState.sets.find(s => s.id === selectedSetId) || vmState.sets[0];
   }, [vmState, selectedSetId]);
+
+  // Assicura che le immagini personalizzate del set siano caricate nella cache in memoria
+  useEffect(() => {
+    if (!currentSet?.images) return;
+    currentSet.images.forEach(img => {
+      if (img.customImageId && !getCachedImage(img.customImageId)) {
+        ensureImageLoaded(img.customImageId, db, appId).then(res => {
+          if (res) setForceUpdate(k => k + 1);
+        });
+      }
+    });
+  }, [currentSet, db, appId]);
 
   // Statistiche del set
   const stats = useMemo(() => {
@@ -146,18 +170,14 @@ export default function VisualMetaphorsManager({
     flash('Immagine rimossa dal set.');
   };
 
-  // Upload Immagini locali con salvataggio sicuro su IndexedDB e compressione ottimizzata
-  const handleFileUpload = (e) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-
-    let processedCount = 0;
-    let tempState = vmState;
-
-    files.forEach(file => {
+  // Helper per caricare e ridimensionare un'immagine da file
+  const processImageFile = (file) => {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
+      reader.onerror = () => reject(new Error(`Errore nella lettura del file ${file.name}`));
       reader.onload = (event) => {
         const img = new Image();
+        img.onerror = () => reject(new Error(`Errore decodifica immagine ${file.name}`));
         img.onload = () => {
           const customId = `cimg_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 
@@ -186,60 +206,65 @@ export default function VisualMetaphorsManager({
             compressedDataUrl = canvas.toDataURL('image/jpeg', 0.80);
           }
 
-          // 2. Micro-thumbnail (~3KB) per preview immediata in Firestore
-          const thumbCanvas = document.createElement('canvas');
-          const thumbMaxDim = 180;
-          let tw = img.width;
-          let th = img.height;
-          if (tw > thumbMaxDim || th > thumbMaxDim) {
-            if (tw > th) {
-              th = Math.round((th * thumbMaxDim) / tw);
-              tw = thumbMaxDim;
-            } else {
-              tw = Math.round((tw * thumbMaxDim) / th);
-              th = thumbMaxDim;
-            }
-          }
-          thumbCanvas.width = tw;
-          thumbCanvas.height = th;
-          const thumbCtx = thumbCanvas.getContext('2d');
-          thumbCtx.drawImage(img, 0, 0, tw, th);
-          let thumbDataUrl = '';
-          try {
-            thumbDataUrl = thumbCanvas.toDataURL('image/webp', 0.50);
-          } catch {
-            thumbDataUrl = thumbCanvas.toDataURL('image/jpeg', 0.50);
-          }
-
-          // 3. Salva immediatamente in IndexedDB
-          saveCustomImage(customId, compressedDataUrl).catch((err) => {
-            console.error('Errore salvataggio IndexedDB:', err);
+          resolve({
+            customId,
+            dataUrl: compressedDataUrl,
+            fileName: file.name
           });
-
-          // 4. Se Firebase è connesso, sincronizza in background nel cloud (un doc per immagine)
-          if (db && user && appId) {
-            syncImageToFirestore(db, user, appId, customId, compressedDataUrl).catch(() => {});
-          }
-
-          tempState = addImageToSet(tempState, currentSet.id, {
-            src: compressedDataUrl,
-            customImageId: customId,
-            thumbnailSrc: thumbDataUrl,
-            title: file.name.replace(/\.[^/.]+$/, ''),
-            alt: file.name
-          });
-
-          processedCount++;
-          if (processedCount === files.length) {
-            onUpdateVmState(tempState);
-            flash(`Aggiunte ${files.length} nuove immagini al set!`);
-          }
         };
         img.src = event.target.result;
       };
       reader.readAsDataURL(file);
     });
+  };
 
+  // Upload Immagini locali con elaborazione asincrona robusta, salvataggio su IndexedDB e Firestore subcollection
+  const handleFileUpload = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0 || !currentSet) return;
+
+    setIsUploading(true);
+    setUploadProgress({ current: 0, total: files.length });
+
+    const newItems = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      try {
+        const processed = await processImageFile(file);
+
+        // 1. Salva in IndexedDB e memoryCache locale
+        await saveCustomImage(processed.customId, processed.dataUrl);
+
+        // 2. Se Firebase è connesso, sincronizza in background nel cloud (un doc per immagine)
+        if (db && user && appId) {
+          syncImageToFirestore(db, user, appId, processed.customId, processed.dataUrl).catch((err) => {
+            console.warn('Sync cloud immagine non riuscito:', err);
+          });
+        }
+
+        newItems.push({
+          src: processed.dataUrl,
+          customImageId: processed.customId,
+          thumbnailSrc: null,
+          title: processed.fileName.replace(/\.[^/.]+$/, ''),
+          alt: processed.fileName,
+          hidden: false
+        });
+      } catch (err) {
+        console.error('Errore elaborazione immagine:', err);
+      }
+
+      setUploadProgress({ current: i + 1, total: files.length });
+    }
+
+    if (newItems.length > 0) {
+      const nextState = addMultipleImagesToSet(vmState, currentSet.id, newItems);
+      onUpdateVmState(nextState);
+      flash(`Aggiunte ${newItems.length} nuove foto al set!`);
+    }
+
+    setIsUploading(false);
     e.target.value = '';
   };
 
@@ -519,16 +544,31 @@ export default function VisualMetaphorsManager({
                     onChange={handleFileUpload}
                     accept="image/*"
                     multiple
+                    disabled={isUploading}
                     className="hidden"
                   />
                   <button
                     type="button"
+                    disabled={isUploading}
                     onClick={() => fileInputRef.current?.click()}
-                    className="px-3.5 py-1.5 bg-yellow-300 hover:bg-yellow-400 text-black border-2 border-black rounded-xl text-xs font-black flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all"
+                    className={`px-3.5 py-1.5 border-2 border-black rounded-xl text-xs font-black flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all ${
+                      isUploading
+                        ? 'bg-gray-200 text-gray-600 cursor-not-allowed'
+                        : 'bg-yellow-300 hover:bg-yellow-400 text-black'
+                    }`}
                     title="Carica nuove foto da file dal tuo computer"
                   >
-                    <Upload size={14} />
-                    <span>+ Carica Foto</span>
+                    {isUploading ? (
+                      <>
+                        <Loader2 size={14} className="animate-spin" />
+                        <span>Caricamento ({uploadProgress.current}/{uploadProgress.total})...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload size={14} />
+                        <span>+ Carica Foto</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -590,7 +630,7 @@ export default function VisualMetaphorsManager({
                       {/* Immagine */}
                       <div className="relative aspect-[4/3] bg-gray-200 border-b-2 border-black overflow-hidden">
                         <img
-                          src={img.src || (img.customImageId ? getCachedImage(img.customImageId) : null) || img.thumbnailSrc || ''}
+                          src={resolveImageSrc(img)}
                           alt={img.alt}
                           loading="lazy"
                           className={`w-full h-full object-cover ${isHidden ? 'grayscale-40' : ''}`}
@@ -806,6 +846,23 @@ export default function VisualMetaphorsManager({
               >
                 Salva
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODALE DI ATTESA DURANTE L'UPLOAD E COMPRESSIONE */}
+      {/* ========================================================================= */}
+      {isUploading && (
+        <div className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl p-6 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] max-w-sm w-full flex items-center gap-4">
+            <div className="w-10 h-10 border-4 border-black border-t-yellow-400 rounded-full animate-spin shrink-0" />
+            <div>
+              <p className="font-black text-sm text-black uppercase">Ottimizzazione foto...</p>
+              <p className="text-xs font-bold text-gray-600 mt-0.5">
+                Elaborate {uploadProgress.current} di {uploadProgress.total} immagini
+              </p>
             </div>
           </div>
         </div>

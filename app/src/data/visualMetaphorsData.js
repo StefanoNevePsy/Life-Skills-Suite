@@ -373,23 +373,63 @@ export const addImageToSet = (state, setId, newImage) => {
     ...state,
     sets: state.sets.map(s => {
       if (s.id !== setId) return s;
-      const nextNum = s.images.reduce((max, img) => Math.max(max, img.number || 0), 0) + 1;
-      const nextId = s.images.reduce((max, img) => Math.max(max, typeof img.id === 'number' ? img.id : 0), 0) + 1;
+      const nextNum = (s.images || []).reduce((max, img) => Math.max(max, img.number || 0), 0) + 1;
+      const nextId = (s.images || []).reduce((max, img) => Math.max(max, typeof img.id === 'number' ? img.id : 0), 0) + 1;
       const imageToAdd = {
         id: nextId,
         number: nextNum,
-        src: newImage.src,
+        src: newImage.src || '',
         title: newImage.title || `Immagine #${nextNum}`,
         alt: newImage.alt || `Immagine #${nextNum}`,
-        hidden: false,
+        hidden: Boolean(newImage.hidden),
         customImageId: newImage.customImageId || null,
-        thumbnailSrc: newImage.thumbnailSrc || null
+        thumbnailSrc: null
       };
-      const newImages = [...s.images, imageToAdd];
+      const newImages = [...(s.images || []), imageToAdd];
       return {
         ...s,
         count: newImages.length,
         images: newImages
+      };
+    })
+  };
+};
+
+/**
+ * Aggiunge un elenco di più immagini a un set in un'unica operazione atomica
+ * preservando indici progressivi e id univoci senza race condition.
+ */
+export const addMultipleImagesToSet = (state, setId, newImagesList) => {
+  if (!state || !Array.isArray(state.sets)) return state;
+  if (!Array.isArray(newImagesList) || newImagesList.length === 0) return state;
+
+  return {
+    ...state,
+    sets: state.sets.map(s => {
+      if (s.id !== setId) return s;
+      let curNum = (s.images || []).reduce((max, img) => Math.max(max, img.number || 0), 0);
+      let curId = (s.images || []).reduce((max, img) => Math.max(max, typeof img.id === 'number' ? img.id : 0), 0);
+
+      const itemsToAdd = newImagesList.map(item => {
+        curNum += 1;
+        curId += 1;
+        return {
+          id: curId,
+          number: curNum,
+          src: item.src || '',
+          title: item.title || `Immagine #${curNum}`,
+          alt: item.alt || `Immagine #${curNum}`,
+          hidden: Boolean(item.hidden),
+          customImageId: item.customImageId || null,
+          thumbnailSrc: null
+        };
+      });
+
+      const updatedImages = [...(s.images || []), ...itemsToAdd];
+      return {
+        ...s,
+        count: updatedImages.length,
+        images: updatedImages
       };
     })
   };
