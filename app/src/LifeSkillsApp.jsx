@@ -33,6 +33,8 @@ import P2PModal from './components/P2PModal';
 import SettingsModal from './components/SettingsModal';
 import TeacherPinModal from './components/TeacherPinModal';
 import GuideModal from './components/GuideModal';
+import VisualMetaphorsView from './components/VisualMetaphorsView';
+import { DEFAULT_VISUAL_METAPHORS_STATE } from './data/visualMetaphorsData';
 import {
   isPinProtectionEnabled,
   isTeacherAuthenticated,
@@ -120,6 +122,7 @@ const INITIAL_DB_DATA = {
     }
   ],
   emotion_thermometer: EMOTION_THERMOMETER_DEFAULT,
+  visual_metaphors: DEFAULT_VISUAL_METAPHORS_STATE,
   scenario_sets: {},
   teacher_pin_hash: null
 };
@@ -2580,6 +2583,16 @@ export default function App() {
     );
   }
 
+  if (view === 'visual_metaphors') {
+    return (
+      <VisualMetaphorsView
+        data={data}
+        onUpdateData={handleUpdateData}
+        onBack={() => setView('dashboard')}
+      />
+    );
+  }
+
   if (view === 'dashboard') {
     return (
       <div className="min-h-screen bg-yellow-50 p-4 sm:p-6 font-sans selection:bg-yellow-200 flex flex-col">
@@ -2721,6 +2734,7 @@ export default function App() {
           <Card title="Decisioni a Caldo" subtitle="Impulsività" icon={Thermometer} color="bg-orange-200" description="Gestione del rischio e reazioni immediate." onClick={() => handleViewChange('decisions_hot')} />
           <Card title="Feedback & Sondaggi" subtitle="Interattivo" icon={MessageSquare} color="bg-yellow-200" description="Q&A, Brainstorming e Sondaggi anonimi in tempo reale." onClick={() => handleViewChange('feedback_session')} />
           <Card title="Termometro Emozioni" subtitle="Esercizio" icon={BarChart2} color="bg-amber-200" description="Ordina le intensità emotive dal più debole al più forte." onClick={() => handleViewChange('emotion_thermometer')} />
+          <Card title="Metafore Visive" subtitle="Fotolinguaggio" icon={Sparkles} color="bg-indigo-200" description="Fotolinguaggio e stimoli visivi per evocare emozioni, vissuti e narrazioni." onClick={() => handleViewChange('visual_metaphors')} />
         </main>
 
         <SettingsModal 

@@ -22,6 +22,7 @@ export default function GuideModal({ isOpen, onClose }) {
     { id: 'quickstart', label: '🚀 Avvio Rapido & Aula', icon: Laptop },
     { id: 'feedback', label: '💬 Feedback & Sondaggi', icon: MessageSquare },
     { id: 'scenarios', label: '🎭 Scenari & Creazione Set', icon: Layers },
+    { id: 'fotolinguaggio', label: '📷 Metafore & Fotolinguaggio', icon: Sparkles },
     { id: 'emotions', label: '🌡️ Termometro & Ruota', icon: Thermometer },
     { id: 'security', label: '🔒 PIN & Sicurezza Cattedra', icon: Shield },
   ];
@@ -271,6 +272,66 @@ export default function GuideModal({ isOpen, onClose }) {
                 </h3>
                 <p className="text-sm leading-relaxed text-gray-700 font-medium">
                   Accessibile con il tasto <strong>"Ruota Emozionale"</strong>. Mostra la mappa cromatica delle emozioni primarie e delle loro combinazioni complesse (es. Gioia + Fiducia = Amore; Rabbia + Disgusto = Disprezzo), utilissima per arricchire il vocabolario emotivo degli studenti.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: METAFORE VISIVE & FOTOLINGUAGGIO */}
+          {activeTab === 'fotolinguaggio' && (
+            <div className="space-y-6 animate-in fade-in">
+              <div className="bg-white p-5 rounded-2xl border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                <h3 className="text-lg font-black text-gray-900 mb-2 flex items-center gap-2">
+                  <Sparkles className="text-indigo-600" size={20}/> Che cos'è il Fotolinguaggio?
+                </h3>
+                <p className="text-sm leading-relaxed text-gray-700 font-medium mb-3">
+                  Il <strong>Fotolinguaggio</strong> è una metodologia didattica ed espressiva ideata per facilitare la comunicazione, la consapevolezza emotiva e la relazione nei gruppi. Le fotografie agiscono come <em>mediatori simbolici</em>: aiutano studenti e partecipanti a verbalizzare vissuti interiori, pensieri ed emozioni che altrimenti risulterebbero difficili da esprimere a parole.
+                </p>
+                <div className="grid sm:grid-cols-2 gap-3 mt-4">
+                  <div className="bg-indigo-50 p-4 rounded-xl border-2 border-indigo-200">
+                    <h4 className="font-black text-xs uppercase tracking-wider text-indigo-950 mb-1">Set ETP (60 immagini)</h4>
+                    <p className="text-xs text-indigo-900 font-medium leading-relaxed">
+                      Immagini fotografiche d'autore ad alta qualità e forte impatto simbolico, incentrate su relazioni, solitudine, sfide, natura e vita sociale.
+                    </p>
+                  </div>
+                  <div className="bg-amber-50 p-4 rounded-xl border-2 border-amber-200">
+                    <h4 className="font-black text-xs uppercase tracking-wider text-amber-950 mb-1">Numerazione (#1 - #60)</h4>
+                    <p className="text-xs text-amber-900 font-medium leading-relaxed">
+                      Ogni foto presenta un numero ben visibile: gli studenti possono guardare la griglia proiettata alla LIM e scegliere con calma il loro numero.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white p-5 rounded-2xl border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                <h3 className="text-lg font-black text-gray-900 mb-2 flex items-center gap-2">
+                  🎯 Come condurre un'attività passo per passo
+                </h3>
+                <ol className="text-xs font-bold text-gray-700 space-y-2.5 list-decimal list-inside">
+                  <li>
+                    <strong>Lancia la domanda stimolo</strong>: ad es. <em>"Scegli una foto che descrive come ti senti oggi"</em>, <em>"Quale foto rappresenta una sfida che stai affrontando?"</em> o <em>"Cosa significa per te fidarti di qualcuno?"</em>.
+                  </li>
+                  <li>
+                    <strong>Fase di scelta individuale e silenziosa</strong>: proietta la griglia sulla LIM. Lascia 2-3 minuti agli alunni per osservare tutte le immagini e appuntarsi il numero scelto.
+                  </li>
+                  <li>
+                    <strong>Assegnazione dei nomi</strong>: clicca sulla foto scelta e inserisci il nome dello studente (più studenti possono scegliere la stessa immagine!).
+                  </li>
+                  <li>
+                    <strong>Proiezione a Schermo Intero & Narrazione</strong>: apri le foto scelte a schermo intero e invita lo studente a condividere: <em>Cosa hai visto in questa foto? Perché ti ha colpito? In che modo ti rispecchia?</em>
+                  </li>
+                  <li>
+                    <strong>Riepilogo & Esportazione</strong>: clicca su <em>"Riepilogo"</em> in alto per consultare l'elenco completo di chi ha scelto cosa e copiarlo o scaricarlo.
+                  </li>
+                </ol>
+              </div>
+
+              <div className="bg-white p-5 rounded-2xl border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                <h3 className="text-lg font-black text-gray-900 mb-2 flex items-center gap-2">
+                  👥 Gestione di Classi e Sessioni Multiple
+                </h3>
+                <p className="text-sm leading-relaxed text-gray-700 font-medium">
+                  Puoi creare una sessione distinta per ogni classe o gruppo (es. <em>"Classe 3A"</em>, <em>"Gruppo Pomeriggio"</em>). Le scelte di ciascuna classe rimangono salvate e possono essere riaperte in qualsiasi momento per riprendere la discussione negli incontri successivi.
                 </p>
               </div>
             </div>
