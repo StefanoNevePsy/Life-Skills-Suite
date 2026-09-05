@@ -304,3 +304,44 @@ export async function fetchImageFromFirestore(db, appId, customId) {
   return null;
 }
 
+/**
+ * Crea un micro-thumbnail leggero (~3-5KB) da un dataUrl in base64
+ */
+export function createThumbnail(dataUrl, maxDim = 180) {
+  return new Promise((resolve) => {
+    if (!dataUrl) return resolve(null);
+    if (typeof window === 'undefined' || typeof document === 'undefined') return resolve(dataUrl);
+
+    const img = new Image();
+    img.onload = () => {
+      let tw = img.width;
+      let th = img.height;
+      if (tw > maxDim || th > maxDim) {
+        if (tw > th) {
+          th = Math.round((th * maxDim) / tw);
+          tw = maxDim;
+        } else {
+          tw = Math.round((tw * maxDim) / th);
+          th = maxDim;
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = tw;
+      canvas.height = th;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, tw, th);
+      try {
+        resolve(canvas.toDataURL('image/webp', 0.5));
+      } catch {
+        try {
+          resolve(canvas.toDataURL('image/jpeg', 0.5));
+        } catch {
+          resolve(dataUrl);
+        }
+      }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
