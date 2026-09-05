@@ -139,33 +139,57 @@ export function getCachedImage(id) {
  * sostituendo i placeholder o thumbnail con i dati completi da IndexedDB.
  */
 export function hydrateVisualMetaphors(vmState) {
-  if (!vmState || !Array.isArray(vmState.sets)) return vmState;
+  if (!vmState) return vmState;
 
   let hasChanged = false;
-  const updatedSets = vmState.sets.map((s) => {
-    if (!Array.isArray(s.images)) return s;
+  let updatedSets = vmState.sets;
 
-    let setChanged = false;
-    const updatedImages = s.images.map((img) => {
-      if (img.customImageId) {
-        const cached = memoryCache.get(img.customImageId);
-        if (cached && (!img.src || img.src.startsWith('custom:') || img.src === img.thumbnailSrc)) {
-          setChanged = true;
-          return { ...img, src: cached };
+  if (Array.isArray(vmState.sets)) {
+    updatedSets = vmState.sets.map((s) => {
+      if (!Array.isArray(s.images)) return s;
+
+      let setChanged = false;
+      const updatedImages = s.images.map((img) => {
+        if (img.customImageId) {
+          const cached = memoryCache.get(img.customImageId);
+          if (cached && (!img.src || img.src.startsWith('custom:') || img.src === img.thumbnailSrc)) {
+            setChanged = true;
+            return { ...img, src: cached };
+          }
+        }
+        return img;
+      });
+
+      if (setChanged) {
+        hasChanged = true;
+        return { ...s, images: updatedImages };
+      }
+      return s;
+    });
+  }
+
+  // Idratazione set Blob Trees
+  let updatedBlobTree = vmState.blobTree;
+  if (vmState.blobTree && Array.isArray(vmState.blobTree.sets)) {
+    let blobChanged = false;
+    const hydratedBlobSets = vmState.blobTree.sets.map((bs) => {
+      if (bs.customImageId) {
+        const cached = memoryCache.get(bs.customImageId);
+        if (cached && (!bs.imageSrc || bs.imageSrc.startsWith('custom:') || bs.imageSrc === bs.thumbnailSrc)) {
+          blobChanged = true;
+          return { ...bs, imageSrc: cached };
         }
       }
-      return img;
+      return bs;
     });
-
-    if (setChanged) {
+    if (blobChanged) {
       hasChanged = true;
-      return { ...s, images: updatedImages };
+      updatedBlobTree = { ...vmState.blobTree, sets: hydratedBlobSets };
     }
-    return s;
-  });
+  }
 
   if (!hasChanged) return vmState;
-  return { ...vmState, sets: updatedSets };
+  return { ...vmState, sets: updatedSets, ...(updatedBlobTree ? { blobTree: updatedBlobTree } : {}) };
 }
 
 /**
@@ -175,41 +199,73 @@ export function hydrateVisualMetaphors(vmState) {
  */
 export function sanitizeDataForFirestore(data) {
   if (!data || typeof data !== 'object') return data;
-  if (!data.visual_metaphors || !Array.isArray(data.visual_metaphors.sets)) return data;
+  if (!data.visual_metaphors) return data;
 
-  const sanitizedSets = data.visual_metaphors.sets.map((s) => {
-    if (!Array.isArray(s.images)) return s;
+  const vm = data.visual_metaphors;
+  let sanitizedSets = vm.sets;
 
-    const sanitizedImages = s.images.map((img) => {
-      // Se l'immagine è personalizzata (ha customImageId o è un dataUrl)
-      if (img.customImageId || (img.src && img.src.startsWith('data:image/'))) {
-        const customId = img.customImageId || `cimg_${img.id || Date.now()}`;
-        
-        // Mantieni sempre in memory cache l'immagine ad alta risoluzione
-        if (img.src && img.src.startsWith('data:image/')) {
-          memoryCache.set(customId, img.src);
-          // Salva in background su IndexedDB
-          saveCustomImage(customId, img.src).catch(() => {});
+  if (Array.isArray(vm.sets)) {
+    sanitizedSets = vm.sets.map((s) => {
+      if (!Array.isArray(s.images)) return s;
+
+      const sanitizedImages = s.images.map((img) => {
+        // Se l'immagine è personalizzata (ha customImageId o è un dataUrl)
+        if (img.customImageId || (img.src && img.src.startsWith('data:image/'))) {
+          const customId = img.customImageId || `cimg_${img.id || Date.now()}`;
+          
+          // Mantieni sempre in memory cache l'immagine ad alta risoluzione
+          if (img.src && img.src.startsWith('data:image/')) {
+            memoryCache.set(customId, img.src);
+            // Salva in background su IndexedDB
+            saveCustomImage(customId, img.src).catch(() => {});
+          }
+
+          return {
+            ...img,
+            customImageId: customId,
+            // Nel documento Firestore principale salviamo il micro-thumbnail o il riferimento per restare sotto 1MB
+            src: img.thumbnailSrc || `custom:${customId}`
+          };
+        }
+        return img;
+      });
+
+      return { ...s, images: sanitizedImages };
+    });
+  }
+
+  let sanitizedBlobTree = vm.blobTree;
+  if (vm.blobTree && Array.isArray(vm.blobTree.sets)) {
+    const sanitizedBlobSets = vm.blobTree.sets.map((bs) => {
+      if (bs.customImageId || (bs.imageSrc && bs.imageSrc.startsWith('data:image/'))) {
+        const customId = bs.customImageId || `cimg_blob_${bs.id || Date.now()}`;
+
+        if (bs.imageSrc && bs.imageSrc.startsWith('data:image/')) {
+          memoryCache.set(customId, bs.imageSrc);
+          saveCustomImage(customId, bs.imageSrc).catch(() => {});
         }
 
         return {
-          ...img,
+          ...bs,
           customImageId: customId,
-          // Nel documento Firestore principale salviamo il micro-thumbnail o il riferimento per restare sotto 1MB
-          src: img.thumbnailSrc || `custom:${customId}`
+          imageSrc: bs.thumbnailSrc || `custom:${customId}`
         };
       }
-      return img;
+      return bs;
     });
 
-    return { ...s, images: sanitizedImages };
-  });
+    sanitizedBlobTree = {
+      ...vm.blobTree,
+      sets: sanitizedBlobSets
+    };
+  }
 
   return {
     ...data,
     visual_metaphors: {
-      ...data.visual_metaphors,
-      sets: sanitizedSets
+      ...vm,
+      sets: sanitizedSets,
+      ...(sanitizedBlobTree ? { blobTree: sanitizedBlobTree } : {})
     }
   };
 }

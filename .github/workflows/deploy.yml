@@ -48,6 +48,8 @@ jobs:
           if [ -d "public/thermometer" ]; then cp -r public/thermometer _site/; fi
           if [ -d "fotolinguaggio" ]; then cp -r fotolinguaggio _site/; fi
           if [ -d "public/fotolinguaggio" ]; then cp -r public/fotolinguaggio _site/; fi
+          if [ -d "blobtrees" ]; then cp -r blobtrees _site/; fi
+          if [ -d "public/blobtrees" ]; then cp -r public/blobtrees _site/; fi
           if [ -f "life_skills.png" ]; then cp life_skills.png _site/; fi
           if [ -f "ruota_.png" ]; then cp ruota_.png _site/; fi
 

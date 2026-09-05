@@ -2783,7 +2783,7 @@ export default function App() {
           <Card title="Decisioni a Caldo" subtitle="Impulsività" icon={Thermometer} color="bg-orange-200" description="Gestione del rischio e reazioni immediate." onClick={() => handleViewChange('decisions_hot')} />
           <Card title="Feedback & Sondaggi" subtitle="Interattivo" icon={MessageSquare} color="bg-yellow-200" description="Q&A, Brainstorming e Sondaggi anonimi in tempo reale." onClick={() => handleViewChange('feedback_session')} />
           <Card title="Termometro Emozioni" subtitle="Esercizio" icon={BarChart2} color="bg-amber-200" description="Ordina le intensità emotive dal più debole al più forte." onClick={() => handleViewChange('emotion_thermometer')} />
-          <Card title="Metafore Visive" subtitle="Fotolinguaggio" icon={Sparkles} color="bg-indigo-200" description="Fotolinguaggio e stimoli visivi per evocare emozioni, vissuti e narrazioni." onClick={() => handleViewChange('visual_metaphors')} />
+          <Card title="Metafore Visive" subtitle="Fotolinguaggio & Blob Trees" icon={Sparkles} color="bg-indigo-200" description="Fotolinguaggio a 60 immagini e Blob Trees interattivi per identificazione e vissuti emotivi." onClick={() => handleViewChange('visual_metaphors')} />
         </main>
 
         <SettingsModal 
