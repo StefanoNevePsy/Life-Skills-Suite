@@ -13,10 +13,44 @@ import {
   getSessionStudentRoster, 
   formatSessionSummaryText 
 } from '../data/visualMetaphorsData';
+import { 
+  loadAllCustomImages, 
+  hydrateVisualMetaphors, 
+  getCachedImage, 
+  fetchImageFromFirestore 
+} from '../lib/customImageStorage';
 
-export default function VisualMetaphorsView({ data, onUpdateData, onBack }) {
-  // Stato complessivo garantito
-  const vmState = useMemo(() => ensureVisualMetaphorsState(data?.visual_metaphors), [data]);
+export default function VisualMetaphorsView({ data, onUpdateData, onBack, db, user, appId }) {
+  const [, setForceUpdate] = useState(0);
+
+  // Carica all'avvio tutte le immagini personalizzate salvate in IndexedDB
+  useEffect(() => {
+    let isMounted = true;
+    loadAllCustomImages().then(() => {
+      if (isMounted) setForceUpdate(k => k + 1);
+    });
+    return () => { isMounted = false; };
+  }, []);
+
+  // Stato complessivo garantito e idratato con i dati immagine ad alta risoluzione
+  const vmState = useMemo(() => {
+    const raw = ensureVisualMetaphorsState(data?.visual_metaphors);
+    return hydrateVisualMetaphors(raw);
+  }, [data]);
+
+  // Se siamo collegati a Firestore, controlla se ci sono immagini custom da scaricare dal cloud
+  useEffect(() => {
+    if (!db || !appId || !vmState?.sets) return;
+    vmState.sets.forEach(s => {
+      (s.images || []).forEach(img => {
+        if (img.customImageId && !getCachedImage(img.customImageId)) {
+          fetchImageFromFirestore(db, appId, img.customImageId).then(dataUrl => {
+            if (dataUrl) setForceUpdate(k => k + 1);
+          });
+        }
+      });
+    });
+  }, [db, appId, vmState]);
 
   const activeSet = useMemo(() => {
     return vmState.sets.find(s => s.id === vmState.activeSetId) || vmState.sets[0];
@@ -550,7 +584,7 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack }) {
                     className="relative w-full aspect-[4/3] bg-gray-100 cursor-pointer overflow-hidden border-b-2 border-black"
                   >
                     <img
-                      src={img.src}
+                      src={img.src || (img.customImageId ? getCachedImage(img.customImageId) : null) || img.thumbnailSrc || ''}
                       alt={img.alt}
                       loading="lazy"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
@@ -666,7 +700,7 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack }) {
           {/* Area Immagine Centrale ad Alta Risoluzione */}
           <div className="flex-1 flex items-center justify-center min-h-0 relative py-2">
             <img
-              src={lightboxImage.src}
+              src={lightboxImage.src || (lightboxImage.customImageId ? getCachedImage(lightboxImage.customImageId) : null) || lightboxImage.thumbnailSrc || ''}
               alt={lightboxImage.alt}
               className="max-h-full max-w-full object-contain rounded-2xl border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] bg-white"
             />
@@ -1019,6 +1053,9 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack }) {
           vmState={vmState}
           onUpdateVmState={updateVmState}
           onClose={() => setIsManagerOpen(false)}
+          db={db}
+          user={user}
+          appId={appId}
         />
       )}
 

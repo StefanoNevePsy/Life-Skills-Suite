@@ -85,7 +85,9 @@ export const ensureVisualMetaphorsState = (state) => {
       src: img.src || '',
       title: img.title || `Immagine #${img.number || imgIdx + 1}`,
       alt: img.alt || `Immagine #${img.number || imgIdx + 1}`,
-      hidden: Boolean(img.hidden)
+      hidden: Boolean(img.hidden),
+      customImageId: img.customImageId || null,
+      thumbnailSrc: img.thumbnailSrc || null
     })) : [];
     return {
       id: s.id || `set_${sIdx}`,
@@ -259,7 +261,9 @@ export const addImageToSet = (state, setId, newImage) => {
         src: newImage.src,
         title: newImage.title || `Immagine #${nextNum}`,
         alt: newImage.alt || `Immagine #${nextNum}`,
-        hidden: false
+        hidden: false,
+        customImageId: newImage.customImageId || null,
+        thumbnailSrc: newImage.thumbnailSrc || null
       };
       const newImages = [...s.images, imageToAdd];
       return {

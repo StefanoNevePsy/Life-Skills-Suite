@@ -14,11 +14,15 @@ import {
   addImageToSet, 
   removeImageFromSet 
 } from '../data/visualMetaphorsData';
+import { saveCustomImage, getCachedImage, syncImageToFirestore } from '../lib/customImageStorage';
 
 export default function VisualMetaphorsManager({ 
   vmState, 
   onUpdateVmState, 
-  onClose 
+  onClose,
+  db,
+  user,
+  appId
 }) {
   const [selectedSetId, setSelectedSetId] = useState(vmState.activeSetId || vmState.sets[0]?.id);
   const [filterMode, setFilterMode] = useState('all'); // 'all' | 'visible' | 'hidden'
@@ -142,7 +146,7 @@ export default function VisualMetaphorsManager({
     flash('Immagine rimossa dal set.');
   };
 
-  // Upload Immagini locali (ridimensionamento leggero)
+  // Upload Immagini locali con salvataggio sicuro su IndexedDB e compressione ottimizzata
   const handleFileUpload = (e) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
@@ -155,9 +159,11 @@ export default function VisualMetaphorsManager({
       reader.onload = (event) => {
         const img = new Image();
         img.onload = () => {
-          // Ridimensiona se troppo grande per preservare memoria e Firestore
+          const customId = `cimg_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+
+          // 1. Immagine principale ad alta definizione (max 1024px)
           const canvas = document.createElement('canvas');
-          const maxDim = 1280;
+          const maxDim = 1024;
           let w = img.width;
           let h = img.height;
           if (w > maxDim || h > maxDim) {
@@ -173,10 +179,52 @@ export default function VisualMetaphorsManager({
           canvas.height = h;
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, w, h);
-          const compressedDataUrl = canvas.toDataURL('image/webp', 0.82);
+          let compressedDataUrl = '';
+          try {
+            compressedDataUrl = canvas.toDataURL('image/webp', 0.80);
+          } catch {
+            compressedDataUrl = canvas.toDataURL('image/jpeg', 0.80);
+          }
+
+          // 2. Micro-thumbnail (~3KB) per preview immediata in Firestore
+          const thumbCanvas = document.createElement('canvas');
+          const thumbMaxDim = 180;
+          let tw = img.width;
+          let th = img.height;
+          if (tw > thumbMaxDim || th > thumbMaxDim) {
+            if (tw > th) {
+              th = Math.round((th * thumbMaxDim) / tw);
+              tw = thumbMaxDim;
+            } else {
+              tw = Math.round((tw * thumbMaxDim) / th);
+              th = thumbMaxDim;
+            }
+          }
+          thumbCanvas.width = tw;
+          thumbCanvas.height = th;
+          const thumbCtx = thumbCanvas.getContext('2d');
+          thumbCtx.drawImage(img, 0, 0, tw, th);
+          let thumbDataUrl = '';
+          try {
+            thumbDataUrl = thumbCanvas.toDataURL('image/webp', 0.50);
+          } catch {
+            thumbDataUrl = thumbCanvas.toDataURL('image/jpeg', 0.50);
+          }
+
+          // 3. Salva immediatamente in IndexedDB
+          saveCustomImage(customId, compressedDataUrl).catch((err) => {
+            console.error('Errore salvataggio IndexedDB:', err);
+          });
+
+          // 4. Se Firebase è connesso, sincronizza in background nel cloud (un doc per immagine)
+          if (db && user && appId) {
+            syncImageToFirestore(db, user, appId, customId, compressedDataUrl).catch(() => {});
+          }
 
           tempState = addImageToSet(tempState, currentSet.id, {
             src: compressedDataUrl,
+            customImageId: customId,
+            thumbnailSrc: thumbDataUrl,
             title: file.name.replace(/\.[^/.]+$/, ''),
             alt: file.name
           });
@@ -542,7 +590,7 @@ export default function VisualMetaphorsManager({
                       {/* Immagine */}
                       <div className="relative aspect-[4/3] bg-gray-200 border-b-2 border-black overflow-hidden">
                         <img
-                          src={img.src}
+                          src={img.src || (img.customImageId ? getCachedImage(img.customImageId) : null) || img.thumbnailSrc || ''}
                           alt={img.alt}
                           loading="lazy"
                           className={`w-full h-full object-cover ${isHidden ? 'grayscale-40' : ''}`}

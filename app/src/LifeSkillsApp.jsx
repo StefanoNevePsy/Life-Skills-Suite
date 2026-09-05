@@ -36,6 +36,11 @@ import GuideModal from './components/GuideModal';
 import VisualMetaphorsView from './components/VisualMetaphorsView';
 import { DEFAULT_VISUAL_METAPHORS_STATE } from './data/visualMetaphorsData';
 import {
+  loadAllCustomImages,
+  hydrateVisualMetaphors,
+  sanitizeDataForFirestore
+} from './lib/customImageStorage';
+import {
   isPinProtectionEnabled,
   isTeacherAuthenticated,
   logoutTeacher
@@ -2418,6 +2423,9 @@ export default function App() {
     }
 
     const initApp = async () => {
+      // Carica la cache delle immagini personalizzate da IndexedDB all'avvio
+      loadAllCustomImages().catch(() => {});
+
       if (db) {
         try {
            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -2430,6 +2438,17 @@ export default function App() {
         }
         onAuthStateChanged(auth, setUser);
       } else {
+        // Se Firebase non è collegato, tenta di caricare il backup locale sicuro
+        try {
+          const savedBackup = localStorage.getItem('lss_main_db_backup');
+          if (savedBackup) {
+            const parsed = JSON.parse(savedBackup);
+            if (parsed && typeof parsed === 'object') {
+              setData(hydrateVisualMetaphors(parsed));
+              return;
+            }
+          }
+        } catch {}
         setData(INITIAL_DB_DATA); 
       }
     };
@@ -2442,6 +2461,10 @@ export default function App() {
     const unsubscribe = onSnapshot(docRef, (snap) => {
       if (snap.exists()) {
         const snapData = snap.data();
+        // Idrata visual_metaphors ripristinando le immagini salvate in IndexedDB/memoria
+        if (snapData && snapData.visual_metaphors) {
+          snapData.visual_metaphors = hydrateVisualMetaphors(snapData.visual_metaphors);
+        }
         setData(snapData);
         // Se c'è un PIN impostato su Firebase e questo dispositivo non è autorizzato, proteggi la Dashboard
         if (isPinProtectionEnabled(snapData) && !isTeacherAuthenticated(snapData)) {
@@ -2451,7 +2474,10 @@ export default function App() {
         setDoc(docRef, INITIAL_DB_DATA); 
         setData(INITIAL_DB_DATA); 
       }
-    }, (err) => setData(INITIAL_DB_DATA));
+    }, (err) => {
+      console.warn("Snapshot listener warning:", err);
+      // NON resettare i dati se la connessione o il payload ha avuto un errore temporaneo
+    });
     return () => unsubscribe();
   }, [user, studentSessionCode, moderatorSessionCode]);
 
@@ -2511,10 +2537,30 @@ export default function App() {
 
   // --- STANDARD ACTIONS ---
   const handleUpdateData = async (newData) => {
-    setData(newData);
+    // 1. Idrata prima lo stato locale con le immagini complete
+    const hydratedData = {
+      ...newData,
+      visual_metaphors: hydrateVisualMetaphors(newData.visual_metaphors)
+    };
+    setData(hydratedData);
+
+    // 2. Salva copia di sicurezza locale
+    try {
+      const safeLocal = sanitizeDataForFirestore(hydratedData);
+      localStorage.setItem('lss_main_db_backup', JSON.stringify(safeLocal));
+    } catch (e) {
+      console.warn('Backup locale non riuscito:', e);
+    }
+
+    // 3. Salva su Firestore sanitizzando per non superare il limite di 1MB
     if (db && user) {
-      const docRef = doc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'lifeskills'), 'main_db');
-      await setDoc(docRef, newData);
+      try {
+        const firestoreData = sanitizeDataForFirestore(hydratedData);
+        const docRef = doc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'lifeskills'), 'main_db');
+        await setDoc(docRef, firestoreData);
+      } catch (err) {
+        console.error('Errore durante salvataggio su Firestore:', err);
+      }
     }
   };
 
@@ -2589,6 +2635,9 @@ export default function App() {
         data={data}
         onUpdateData={handleUpdateData}
         onBack={() => setView('dashboard')}
+        db={db}
+        user={user}
+        appId={APP_ID}
       />
     );
   }
