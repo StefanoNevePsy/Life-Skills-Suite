@@ -34,6 +34,8 @@ Le immagini standard distribuite con il sito restano asset statici. La disponibi
 
 ## Preparazione amministrativa prima del rilascio
 
+Questi passaggi possono essere guidati da **Configura-Firebase.command**: vedi [configurazione e migrazione](FIREBASE_SETUP.md). La preparazione e la pubblicazione sono due fasi separate.
+
 1. Esportare un backup completo dall'app precedente, inclusi file e immagini; conservarlo fuori dal browser. Annotare il namespace/utente usato dall'archivio corrente.
 2. In Firebase Authentication abilitare Email/Password e Anonymous. Creare l'account docente (oppure gli account individuali) e annotarne l'UID. Non distribuire credenziali amministrative ai browser.
 3. In Firestore creare `teachers/UID_ESATTO` con il campo booleano `enabled: true`.

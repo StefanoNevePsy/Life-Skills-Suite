@@ -5,6 +5,10 @@ scenari decisionali, termometro delle emozioni, metafore visive (fotolinguaggio 
 
 > Per una spiegazione dettagliata dell'architettura completa, delle funzionalità e della persistenza dei dati per sviluppatori e AI, consulta il file **[APP_CONTEXT.md](APP_CONTEXT.md)**.
 
+## Configurazione Firebase guidata
+
+Su macOS apri **Configura-Firebase.command**: prepara il progetto, salva un backup, migra materiali e immagini e permette un rilascio separato su Firebase Hosting. Consulta la [guida passo passo](docs/FIREBASE_SETUP.md) prima di usarlo sul progetto reale.
+
 ## Come si lavora
 
 ```bash

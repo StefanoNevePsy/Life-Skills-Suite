@@ -23,3 +23,6 @@ FotoLinguaggio/
 # Local Firebase emulator logs
 *-debug.log
 .firebase/
+
+# Guided Firebase setup: private backups, OAuth-free plans and staging files
+.firebase-setup/
