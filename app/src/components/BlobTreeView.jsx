@@ -1,11 +1,15 @@
+import { sessionLink } from '../lib/firebaseConfig';
+import { newSessionCode } from '../lib/sessionCode';
 import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { 
   ArrowLeft, ArrowRight, Users, Plus, X, Edit2, Trash2, Copy, Check, 
   Download, RefreshCw, ZoomIn, ZoomOut, Maximize2, Minimize2, Move, 
   MapPin, Search, Settings, Sparkles, CheckCircle2, 
   SlidersHorizontal, ChevronDown, ChevronUp, Image as ImageIcon,
-  Upload, Tag, MessageSquare, ArrowLeftRight, ArrowUpDown, LayoutGrid, Trees
+  Upload, Tag, MessageSquare, ArrowLeftRight, ArrowUpDown, LayoutGrid, Trees,
+  Radio, QrCode, Eye, EyeOff, FileSpreadsheet, Loader2
 } from 'lucide-react';
+import { doc, collection, setDoc, updateDoc, onSnapshot } from '../lib/sessionStore';
 import FullscreenButton from './FullscreenButton';
 import { 
   createNewBlobSession, 
@@ -27,6 +31,8 @@ import {
   resolveBlobImageSrc,
   syncImageToFirestore
 } from '../lib/customImageStorage';
+import { getFBConfig, encodeFBConfig } from '../lib/firebaseConfig';
+import { exportBlobTreeXLSX, exportBlobTreeImageCanvas, exportMetaphorSummaryTXT } from '../lib/exporters';
 
 // Palette colori neo-brutalisti per i segnaposto
 const MARKER_COLORS = [
@@ -72,6 +78,172 @@ export default function BlobTreeView({
   const [searchHighlight, setSearchHighlight] = useState('');
   const [hoveredMarkerId, setHoveredMarkerId] = useState(null);
   const [isRosterOpen, setIsRosterOpen] = useState(true);
+
+  // --- STATO SESSIONE ONLINE (BLOB TREE) ---
+  const [onlineSessionCode, setOnlineSessionCode] = useState(null);
+  const [onlineSessionData, setOnlineSessionData] = useState(null);
+  const [isOnlineSetupOpen, setIsOnlineSetupOpen] = useState(false);
+  const [isOnlineQrOpen, setIsOnlineQrOpen] = useState(false);
+  const [onlineMaxPositions, setOnlineMaxPositions] = useState(1);
+  const [onlineShowNames, setOnlineShowNames] = useState(true);
+  const [onlineSetId, setOnlineSetId] = useState(blobData.activeSetId || 'blob_tree_classic');
+  const [loadingOnline, setLoadingOnline] = useState(false);
+  const [onlineQrDataUrl, setOnlineQrDataUrl] = useState('');
+
+  // Sincronizzazione in tempo reale con Firestore per la sessione Blob Tree online
+  useEffect(() => {
+    if (!db || !onlineSessionCode) return;
+    const sessionRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'feedback_sessions'), onlineSessionCode);
+    const unsubscribe = onSnapshot(sessionRef, (snap) => {
+      if (snap.exists()) {
+        const d = snap.data();
+        setOnlineSessionData(d);
+        if (typeof d.showNames === 'boolean') {
+          setOnlineShowNames(d.showNames);
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, [db, onlineSessionCode, appId]);
+
+  // Generazione URL e QR Code per la sessione Blob Tree online
+  const cleanBaseUrl = window.location.origin + window.location.pathname;
+  const fbEncoded = encodeFBConfig(getFBConfig());
+  const onlineJoinUrl = onlineSessionCode ? sessionLink(onlineSessionCode) : '';
+
+  useEffect(() => {
+    if (onlineJoinUrl && typeof window.QRCode !== 'undefined') {
+      window.QRCode.toDataURL(onlineJoinUrl, { width: 320, margin: 1 })
+        .then(url => setOnlineQrDataUrl(url))
+        .catch(() => {});
+    }
+  }, [onlineJoinUrl]);
+
+  // Estrai tutti i segnaposti inviati dagli studenti online
+  const allOnlineMarkers = useMemo(() => {
+    if (!onlineSessionCode || !onlineSessionData?.participants) return [];
+    const list = [];
+    Object.values(onlineSessionData.participants).forEach((p, participantIndex) => {
+      const studentName = p.studentName && p.studentName.trim() ? p.studentName.trim() : 'Anonimo';
+      (p.markers || []).forEach(m => {
+        list.push({
+          ...m,
+          studentName,
+          participantNumber: participantIndex + 1
+        });
+      });
+    });
+    return list;
+  }, [onlineSessionCode, onlineSessionData]);
+
+  // Segnaposti visualizzati attivamente
+  const activeDisplayMarkers = useMemo(() => {
+    return onlineSessionCode ? allOnlineMarkers : markers;
+  }, [onlineSessionCode, allOnlineMarkers, markers]);
+
+  // Avvio sessione online Blob Tree
+  const handleStartOnlineSession = async () => {
+    if (!db) {
+      alert("Configura prima Firebase nelle Impostazioni per avviare sessioni online.");
+      return;
+    }
+    setLoadingOnline(true);
+    try {
+      const targetSet = sets.find(s => s.id === onlineSetId) || activeSet;
+      const code = newSessionCode();
+      const sessionRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'feedback_sessions'), code);
+
+      const resolvedSrc = resolveBlobImageSrc(targetSet);
+
+      await setDoc(sessionRef, {
+        type: 'metaphor_blob',
+        active: true,
+        createdAt: new Date().toISOString(),
+        setId: targetSet.id,
+        setTitle: targetSet.title,
+        imageSrc: resolvedSrc,
+        customImageId: targetSet.customImageId || null,
+        maxSelections: Number(onlineMaxPositions) || 1,
+        showNames: onlineShowNames !== false,
+        participants: {}
+      });
+
+      if (targetSet && targetSet.id !== blobData.activeSetId) {
+        handleSelectSet(targetSet.id);
+      }
+
+      setOnlineSessionCode(code);
+      setIsOnlineSetupOpen(false);
+      setIsOnlineQrOpen(true);
+    } catch (err) {
+      console.error("Errore avvio sessione Blob Tree online:", err);
+      alert("Errore durante l'avvio della sessione online.");
+    } finally {
+      setLoadingOnline(false);
+    }
+  };
+
+  // Toggle stato aperta / chiusa
+  const toggleOnlineStatus = async () => {
+    if (!db || !onlineSessionCode || !onlineSessionData) return;
+    try {
+      const sessionRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'feedback_sessions'), onlineSessionCode);
+      await updateDoc(sessionRef, { active: !onlineSessionData.active });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Toggle visibilità nomi in tempo reale
+  const toggleOnlineShowNames = async () => {
+    const nextVal = !onlineShowNames;
+    setOnlineShowNames(nextVal);
+    if (db && onlineSessionCode) {
+      try {
+        const sessionRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'feedback_sessions'), onlineSessionCode);
+        await updateDoc(sessionRef, { showNames: nextVal });
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
+
+  // Esporta Immagine Blob Tree con posizioni e nomi sovrimpressi
+  const handleExportBlobImage = () => {
+    exportBlobTreeImageCanvas({
+      imageSrc: activeImageSrc,
+      markers: activeDisplayMarkers,
+      sessionCode: onlineSessionCode || activeSession?.name || 'BLOB',
+      scenarioTitle: activeSet?.title || 'Blob Tree',
+      showNames: onlineSessionCode ? onlineShowNames : true
+    });
+  };
+
+  // Termina sessione online Blob Tree
+  const handleEndOnlineSession = () => {
+    if (!onlineSessionCode) return;
+    const count = allOnlineMarkers.length;
+    if (count > 0) {
+      const doImport = window.confirm(
+        `Sono stati registrati ${count} segnaposti dagli studenti online.\n\nVuoi importarli nella sessione locale "${activeSession?.name || 'Corrente'}" prima di chiudere?`
+      );
+      if (doImport && activeSession) {
+        updateState(prev => {
+          const existing = activeSession.markers || [];
+          const merged = [...existing, ...allOnlineMarkers];
+          return {
+            ...prev,
+            blobTree: {
+              ...prev.blobTree,
+              sessions: (prev.blobTree?.sessions || []).map(s => s.id === activeSession.id ? { ...s, markers: merged } : s)
+            }
+          };
+        });
+      }
+    }
+    setOnlineSessionCode(null);
+    setOnlineSessionData(null);
+  };
 
   // Modalità di adattamento immagine:
   // 'contain': adatta tutta l'immagine allo schermo (visibile al 100% senza scroll)
@@ -416,9 +588,10 @@ export default function BlobTreeView({
   const renderMarkers = () => {
     return (
       <>
-        {markers.map((m, idx) => {
+        {activeDisplayMarkers.map((m, idx) => {
           const isHovered = hoveredMarkerId === m.id;
-          const isMatchingSearch = searchHighlight.trim() && m.studentName.toLowerCase().includes(searchHighlight.trim().toLowerCase());
+          const isMatchingSearch = searchHighlight.trim() && m.studentName && m.studentName.toLowerCase().includes(searchHighlight.trim().toLowerCase());
+          const shouldHideName = (onlineSessionCode && !onlineShowNames) || isCompactView;
 
           return (
             <div
@@ -427,34 +600,36 @@ export default function BlobTreeView({
                 left: `${m.x}%`,
                 top: `${m.y}%`,
               }}
-              onMouseDown={(e) => handleMarkerDragStart(e, m.id)}
+              onMouseDown={(e) => {
+                if (!onlineSessionCode) handleMarkerDragStart(e, m.id);
+              }}
               onClick={(e) => {
                 e.stopPropagation();
-                setEditingMarker(m);
+                if (!onlineSessionCode) setEditingMarker(m);
               }}
               onMouseEnter={() => setHoveredMarkerId(m.id)}
               onMouseLeave={() => setHoveredMarkerId(null)}
-              className={`blob-marker absolute -translate-x-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing z-20 group transition-transform ${
+              className={`blob-marker absolute -translate-x-1/2 -translate-y-1/2 ${onlineSessionCode ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'} z-20 group transition-transform ${
                 isMatchingSearch ? 'animate-bounce scale-125 z-40' : ''
               } ${isHovered ? 'scale-110 z-30' : ''}`}
             >
               {/* Visualizzazione compatta o estesa */}
-              {isCompactView ? (
-                // SOLO BADGE CIRCOLARE
+              {shouldHideName ? (
+                // SOLO BADGE CIRCOLARE (ANONIMO)
                 <div 
                   style={{ backgroundColor: m.color || '#FACC15' }}
                   className="w-8 h-8 rounded-full border-2 border-black font-black text-xs text-black flex items-center justify-center shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:scale-110 transition-transform relative"
-                  title={`${m.studentName}${m.note ? ` - "${m.note}"` : ''}`}
+                  title={onlineSessionCode && !onlineShowNames ? `Posizione #${idx + 1}` : `${m.studentName}${m.note ? ` - "${m.note}"` : ''}`}
                 >
                   <span>{idx + 1}</span>
 
                   {/* Tooltip Hover */}
                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity bg-black text-white text-[11px] font-bold px-2 py-1 rounded-md whitespace-nowrap shadow-lg z-50">
-                    {m.studentName} {m.note && `• "${m.note}"`}
+                    {onlineSessionCode && !onlineShowNames ? `Posizione #${idx + 1}` : `${m.studentName} ${m.note ? `• "${m.note}"` : ''}`}
                   </div>
                 </div>
               ) : (
-                // BADGE ESTESO CON NOME
+                // BADGE ESTESO CON NOME STUDENTE
                 <div 
                   style={{ backgroundColor: m.color || '#FACC15' }}
                   className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl border-2 border-black font-black text-xs text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:scale-105 transition-transform whitespace-nowrap"
@@ -639,8 +814,33 @@ export default function BlobTreeView({
           </div>
         </div>
 
-        {/* Pulsante Tutto Schermo LIM Rapido */}
-        <div className="flex items-center gap-2">
+        {/* Pulsante Tutto Schermo LIM Rapido & Sessione Online */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => {
+              if (!db) {
+                alert("Per creare sessioni online con gli studenti, connetti prima Firebase nelle Impostazioni (icona ingranaggio nella barra della Dashboard).");
+                return;
+              }
+              if (onlineSessionCode) {
+                setIsOnlineQrOpen(true);
+              } else {
+                setOnlineSetId(blobData.activeSetId || 'blob_tree_classic');
+                setIsOnlineSetupOpen(true);
+              }
+            }}
+            className={`flex items-center gap-1.5 px-3.5 py-2 font-black text-xs uppercase tracking-wider rounded-2xl border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer ${
+              onlineSessionCode
+                ? 'bg-emerald-400 text-black animate-pulse'
+                : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-900'
+            }`}
+            title="Avvia una sessione online per far posizionare i segnaposti ai ragazzi dal proprio smartphone"
+          >
+            <Radio size={16} className={onlineSessionCode ? 'text-black' : 'text-emerald-700'} />
+            <span>{onlineSessionCode ? `Live: ${onlineSessionCode}` : 'Sessione Online'}</span>
+          </button>
+
           <button
             type="button"
             onClick={toggleFullscreen}
@@ -652,6 +852,122 @@ export default function BlobTreeView({
           </button>
         </div>
       </nav>
+
+      {/* ========================================================================= */}
+      {/* BANNER SESSIONE ONLINE BLOB TREE ATTIVA */}
+      {/* ========================================================================= */}
+      {onlineSessionCode && (
+        <section className="max-w-7xl mx-auto w-full mb-4 bg-white/95 backdrop-blur-sm p-4 rounded-3xl border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] animate-in slide-in-from-top-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+
+            {/* GRUPPO 1: CODICE STANZA & STATO */}
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <div
+                onClick={() => {
+                  navigator.clipboard.writeText(onlineSessionCode);
+                  alert(`Codice stanza ${onlineSessionCode} copiato negli appunti!`);
+                }}
+                className="bg-black text-yellow-300 px-3.5 py-1.5 rounded-xl font-mono font-black text-lg tracking-wider cursor-pointer hover:scale-105 transition-transform flex items-center gap-2 shadow-sm"
+                title="Clicca per copiare il codice stanza"
+              >
+                <Radio size={16} className="text-yellow-400 animate-pulse" />
+                <span>{onlineSessionCode}</span>
+                <Copy size={13} className="opacity-60 hover:opacity-100" />
+              </div>
+
+              {/* STATO APERTA / CHIUSA */}
+              <button
+                type="button"
+                onClick={toggleOnlineStatus}
+                className={`px-3 py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5 border-2 transition-all cursor-pointer ${
+                  onlineSessionData?.active
+                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200'
+                    : 'bg-rose-100 text-rose-800 border-rose-300 hover:bg-rose-200'
+                }`}
+                title="Clicca per aprire o chiudere la ricezione dei segnaposti"
+              >
+                <span className={`w-2 h-2 rounded-full ${onlineSessionData?.active ? 'bg-emerald-600 animate-ping' : 'bg-rose-600'}`} />
+                <span>{onlineSessionData?.active ? 'APERTA' : 'CHIUSA'}</span>
+              </button>
+
+              {/* CONTATORE SEGNAPOSTI */}
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-100 border-2 border-black rounded-xl font-black text-xs text-emerald-950">
+                <MapPin size={14} className="text-emerald-800" />
+                <span>{allOnlineMarkers.length} {allOnlineMarkers.length === 1 ? 'posizione ricevuta' : 'posizioni ricevute'}</span>
+              </div>
+
+              <div className="text-[11px] font-bold text-gray-500 hidden md:inline">
+                Max: {onlineSessionData?.maxSelections || 1} a testa
+              </div>
+            </div>
+
+            {/* GRUPPO 2: AZIONI (TOGGLE NOMI, ESPORTA IMMAGINE, EXCEL, QR, TERMINA) */}
+            <div className="flex items-center gap-2 flex-wrap">
+
+              {/* TOGGLE MOSTRA / NASCONDI NOMI */}
+              <button
+                type="button"
+                onClick={toggleOnlineShowNames}
+                className={`px-3 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider border-2 border-black flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer ${
+                  onlineShowNames
+                    ? 'bg-white hover:bg-gray-100 text-black'
+                    : 'bg-amber-300 text-black ring-2 ring-black'
+                }`}
+                title={onlineShowNames ? "Nascondi i nomi degli studenti alla lavagna" : "Mostra i nomi degli studenti alla lavagna"}
+              >
+                {onlineShowNames ? <Eye size={14} /> : <EyeOff size={14} />}
+                <span>{onlineShowNames ? 'Nomi Visibili' : 'Nomi Anonimi'}</span>
+              </button>
+
+              {/* PULSANTE QR CODE LIM */}
+              <button
+                type="button"
+                onClick={() => setIsOnlineQrOpen(true)}
+                className="px-3 py-1.5 bg-yellow-300 hover:bg-yellow-400 text-black font-black text-xs uppercase tracking-wider rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all flex items-center gap-1.5 cursor-pointer"
+                title="Mostra QR Code per gli studenti"
+              >
+                <QrCode size={14} />
+                <span>QR LIM</span>
+              </button>
+
+              {/* PULSANTE ESPORTA IMMAGINE CON NOMI E POSIZIONI */}
+              <button
+                type="button"
+                onClick={handleExportBlobImage}
+                className="px-3 py-1.5 bg-emerald-300 hover:bg-emerald-400 text-black font-black text-xs uppercase tracking-wider rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all flex items-center gap-1.5 cursor-pointer"
+                title="Scarica l'immagine grafica dell'albero con tutti i segnaposti e nomi sovrapposti"
+              >
+                <Download size={14} />
+                <span>Esporta Immagine (PNG)</span>
+              </button>
+
+              {/* ESPORTAZIONE XLSX */}
+              <button
+                type="button"
+                onClick={() => exportBlobTreeXLSX(onlineSessionData || {}, onlineSessionCode, onlineShowNames)}
+                className="px-3 py-1.5 bg-white hover:bg-emerald-100 text-emerald-900 font-black text-xs uppercase tracking-wider rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all flex items-center gap-1.5 cursor-pointer"
+                title="Esporta foglio Excel con le coordinate e i nomi"
+              >
+                <FileSpreadsheet size={14} className="text-emerald-700" />
+                <span>Excel (XLSX)</span>
+              </button>
+
+              {/* TERMINA SESSIONE ONLINE */}
+              <button
+                type="button"
+                onClick={handleEndOnlineSession}
+                className="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-800 font-black text-xs uppercase tracking-wider rounded-xl border-2 border-rose-400 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all flex items-center gap-1 cursor-pointer"
+                title="Chiudi la sessione online"
+              >
+                <X size={14} />
+                <span>Termina</span>
+              </button>
+
+            </div>
+
+          </div>
+        </section>
+      )}
 
       {/* ========================================================================= */}
       {/* 1. BARRA SCENARIO & SESSIONI */}
@@ -1431,8 +1747,18 @@ export default function BlobTreeView({
               <div className="flex items-center gap-2">
                 <button
                   type="button"
+                  onClick={handleExportBlobImage}
+                  className="px-4 py-2.5 bg-white hover:bg-gray-100 text-black border-2 border-black rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
+                  title="Scarica l'immagine dell'albero con i segnaposti sovrapposti"
+                >
+                  <ImageIcon size={14} />
+                  <span>Scarica PNG</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={handleDownloadTxt}
-                  className="px-4 py-2.5 bg-white hover:bg-gray-100 text-black border-2 border-black rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                  className="px-4 py-2.5 bg-white hover:bg-gray-100 text-black border-2 border-black rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
                 >
                   <Download size={14} />
                   <span>Scarica TXT</span>
@@ -1441,7 +1767,7 @@ export default function BlobTreeView({
                 <button
                   type="button"
                   onClick={handleCopySummary}
-                  className="px-5 py-2.5 bg-yellow-300 hover:bg-yellow-400 text-black border-2 border-black rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5"
+                  className="px-5 py-2.5 bg-yellow-300 hover:bg-yellow-400 text-black border-2 border-black rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 cursor-pointer"
                 >
                   {copiedSummary ? <Check size={14} className="stroke-[3]" /> : <Copy size={14} />}
                   <span>{copiedSummary ? 'Copiato!' : 'Copia negli Appunti'}</span>
@@ -1546,6 +1872,206 @@ export default function BlobTreeView({
         </div>
       )}
 
+      {/* ========================================================================= */}
+      {/* 11. MODALE CONFIGURAZIONE AVVIO SESSIONE ONLINE BLOB TREE */}
+      {/* ========================================================================= */}
+      {isOnlineSetupOpen && (
+        <div className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] animate-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b-2 border-black mb-4">
+              <div className="flex items-center gap-2">
+                <Radio size={22} className="text-emerald-600" />
+                <h3 className="text-base font-black uppercase text-black">Avvia Sessione Online Blob Tree</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsOnlineSetupOpen(false)}
+                className="p-1 hover:bg-gray-100 rounded-lg text-black cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-xs font-bold text-gray-600 mb-4">
+              I ragazzi potranno posizionare autonomamente il proprio segnaposto sull'albero dal loro smartphone o computer.
+            </p>
+
+            {/* SCELTA SCENARIO / ALBERO */}
+            <div className="mb-4">
+              <label className="block text-xs font-black uppercase tracking-wider text-gray-700 mb-1.5">
+                Scenario / Albero da Utilizzare:
+              </label>
+              <select
+                value={onlineSetId}
+                onChange={(e) => setOnlineSetId(e.target.value)}
+                className="w-full p-2.5 bg-gray-50 border-2 border-black rounded-xl font-bold text-xs text-black outline-none focus:ring-2 focus:ring-yellow-400 cursor-pointer"
+              >
+                {sets.map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* SCELTA MASSIMA SELEZIONI / POSIZIONI PER STUDENTE */}
+            <div className="mb-4">
+              <label className="block text-xs font-black uppercase tracking-wider text-gray-700 mb-1.5">
+                Quante posizioni può scegliere al massimo ciascun ragazzo?
+              </label>
+              <div className="flex items-center gap-2">
+                {[1, 2, 3, 4, 5].map(n => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setOnlineMaxPositions(n)}
+                    className={`flex-1 py-2 rounded-xl border-2 border-black font-black text-xs transition-all cursor-pointer ${
+                      onlineMaxPositions === n
+                        ? 'bg-yellow-300 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] scale-105'
+                        : 'bg-white hover:bg-gray-100 text-gray-700'
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] font-bold text-gray-400 mt-1">
+                {onlineMaxPositions === 1
+                  ? 'Ogni studente posizionerà 1 solo segnaposto.'
+                  : `Ogni studente potrà posizionare fino a ${onlineMaxPositions} segnaposti.`}
+              </p>
+            </div>
+
+            {/* TOGGLE VISIBILITÀ NOMI ALLA LAVAGNA */}
+            <div className="mb-6 p-3.5 bg-yellow-50 border-2 border-black rounded-2xl flex items-center justify-between gap-3">
+              <div>
+                <span className="text-xs font-black uppercase text-black block">Mostra Nomi alla Lavagna</span>
+                <span className="text-[11px] font-bold text-gray-600 block">
+                  {onlineShowNames
+                    ? 'I nomi e le note saranno visibili sopra i segnaposti.'
+                    : 'I segnaposti mostreranno solo numeri progressivi anonimi (#1, #2...).'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOnlineShowNames(!onlineShowNames)}
+                className={`px-3 py-1.5 rounded-xl border-2 border-black font-black text-xs uppercase tracking-wider cursor-pointer transition-all shrink-0 ${
+                  onlineShowNames
+                    ? 'bg-emerald-300 text-black'
+                    : 'bg-gray-200 text-gray-600'
+                }`}
+              >
+                {onlineShowNames ? 'Sì (Visibili)' : 'No (Anonimi)'}
+              </button>
+            </div>
+
+            {/* AZIONI */}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setIsOnlineSetupOpen(false)}
+                className="flex-1 py-2.5 rounded-xl border-2 border-black font-black text-xs text-gray-700 hover:bg-gray-100 uppercase tracking-wider cursor-pointer"
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                onClick={handleStartOnlineSession}
+                disabled={loadingOnline}
+                className="flex-2 py-2.5 bg-yellow-400 hover:bg-yellow-500 text-black border-2 border-black rounded-xl font-black text-xs uppercase tracking-wider shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                {loadingOnline ? <Loader2 size={16} className="animate-spin" /> : <Radio size={16} />}
+                <span>Avvia Ora</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 12. MODALE QR CODE LIM & LINK DI CONDIVISIONE */}
+      {/* ========================================================================= */}
+      {isOnlineQrOpen && (
+        <div className="fixed inset-0 z-[75] bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full border-4 border-black shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] animate-in zoom-in-95 text-center">
+
+            <div className="flex items-center justify-between pb-3 border-b-2 border-black mb-4">
+              <div className="flex items-center gap-2">
+                <QrCode size={22} className="text-black" />
+                <h3 className="text-base font-black uppercase text-black">Connettiti al Blob Tree</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsOnlineQrOpen(false)}
+                className="p-1 hover:bg-gray-100 rounded-lg text-black cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* CODICE STANZA GIGANTE */}
+            <div className="mb-4">
+              <span className="text-xs font-black uppercase tracking-wider text-gray-500 block mb-1">
+                Codice Stanza per gli Studenti:
+              </span>
+              <div
+                onClick={() => {
+                  navigator.clipboard.writeText(onlineSessionCode);
+                  alert(`Codice stanza ${onlineSessionCode} copiato!`);
+                }}
+                className="inline-block bg-black text-yellow-300 font-mono font-black text-4xl sm:text-5xl px-8 py-3 rounded-2xl border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] tracking-widest cursor-pointer hover:scale-105 transition-transform"
+                title="Clicca per copiare"
+              >
+                {onlineSessionCode}
+              </div>
+            </div>
+
+            {/* IMMAGINE QR CODE */}
+            <div className="bg-yellow-50 border-3 border-black rounded-2xl p-4 inline-block mx-auto mb-4 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+              {onlineQrDataUrl ? (
+                <img
+                  src={onlineQrDataUrl}
+                  alt={`QR Code stanza ${onlineSessionCode}`}
+                  className="w-56 h-56 sm:w-64 sm:h-64 object-contain mx-auto rounded-lg"
+                />
+              ) : (
+                <div className="w-56 h-56 flex items-center justify-center">
+                  <Loader2 size={32} className="animate-spin text-yellow-600" />
+                </div>
+              )}
+            </div>
+
+            <p className="text-xs font-bold text-gray-600 mb-4">
+              Inquadra con lo smartphone o inserisci il codice nella schermata iniziale.
+            </p>
+
+            {/* COPIA LINK DIRETTO */}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(onlineJoinUrl);
+                  alert("Link diretto copiato negli appunti!");
+                }}
+                className="flex-1 py-3 bg-white hover:bg-gray-100 text-black border-2 border-black rounded-xl font-black text-xs uppercase tracking-wider shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Copy size={14} />
+                <span>Copia Link Diretto</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsOnlineQrOpen(false)}
+                className="py-3 px-6 bg-yellow-400 hover:bg-yellow-500 text-black border-2 border-black rounded-xl font-black text-xs uppercase tracking-wider shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
+              >
+                Chiudi
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -1595,9 +2121,7 @@ function BlobTreeSetManagerModal({ sets, activeSetId, onSelectSet, onUpdateState
       await saveCustomImage(customId, previewDataUrl);
 
       if (db && user && appId) {
-        syncImageToFirestore(db, user, appId, customId, previewDataUrl).catch((err) => {
-          console.warn('Sync cloud immagine blob non riuscito:', err);
-        });
+        await syncImageToFirestore(db, user, appId, customId, previewDataUrl);
       }
 
       onUpdateState(prev => createBlobTreeSet(prev, {

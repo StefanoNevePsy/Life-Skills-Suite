@@ -1,3 +1,4 @@
+import { activeDatabase, studentMode } from './cloudIdentity';
 // Gestione persistente ad alta capacità per immagini personalizzate (IndexedDB + Firestore)
 // Evita il superamento del limite di 1MB per singolo documento in Firestore 'main_db'
 // e garantisce che le immagini caricate non vadano mai perse né resettate da onSnapshot.
@@ -10,6 +11,7 @@ const STORE_NAME = 'custom_images';
 
 // Cache in memoria per accesso sincrono immediato nei render React
 const memoryCache = new Map();
+const cloudCopies = new Map();
 
 /**
  * Apre o crea il database IndexedDB
@@ -363,9 +365,16 @@ export async function syncImageToFirestore(db, user, appId, customId, dataUrl) {
   if (!db || !user || !appId || !customId || !dataUrl) return;
   try {
     const docRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'custom_metaphor_images'), customId);
-    await setDoc(docRef, { id: customId, dataUrl, updatedAt: Date.now() });
+    const optimized = await optimizeCloudImage(dataUrl);
+    const copyKey = `${db.app.options.projectId}/${appId}/${customId}`;
+    if (cloudCopies.get(copyKey) === optimized) return;
+    const previous = await getDoc(docRef);
+    if (previous.exists() && previous.data().dataUrl === optimized) { cloudCopies.set(copyKey, optimized); return; }
+    await setDoc(docRef, { id: customId, dataUrl: optimized, updatedAt: Date.now() });
+    cloudCopies.set(copyKey, optimized);
   } catch (err) {
     console.warn('Sync cloud immagine non riuscito (mantenuta in IndexedDB):', err);
+    throw new Error('Immagine salvata solo su questo dispositivo. Sincronizzazione cloud non riuscita: ' + err.message);
   }
 }
 
@@ -375,7 +384,10 @@ export async function syncImageToFirestore(db, user, appId, customId, dataUrl) {
 export async function fetchImageFromFirestore(db, appId, customId) {
   if (!db || !appId || !customId) return null;
   try {
-    const docRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'custom_metaphor_images'), customId);
+    const code = new URLSearchParams(location.search).get('session');
+    const docRef = studentMode() && code
+      ? doc(activeDatabase(), 'sessions', code, 'images', customId)
+      : doc(collection(db, 'artifacts', appId, 'public', 'data', 'custom_metaphor_images'), customId);
     const snap = await getDoc(docRef);
     if (snap.exists() && snap.data()?.dataUrl) {
       const dataUrl = snap.data().dataUrl;
@@ -428,4 +440,35 @@ export function createThumbnail(dataUrl, maxDim = 180) {
     img.onerror = () => resolve(dataUrl);
     img.src = dataUrl;
   });
+}
+
+// A bounded, readable cloud copy; the original remains in local backups.
+export async function optimizeCloudImage(dataUrl) {
+  if (new TextEncoder().encode(dataUrl).length < 650000) return dataUrl;
+  const image = new Image();
+  await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = () => reject(new Error('Immagine non valida')); image.src = dataUrl; });
+  for (const max of [2200, 1800, 1400, 1100]) {
+    const scale = Math.min(1, max / Math.max(image.naturalWidth, image.naturalHeight));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(image.naturalWidth * scale); canvas.height = Math.round(image.naturalHeight * scale);
+    canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+    const result = canvas.toDataURL('image/webp', 0.82);
+    if (new TextEncoder().encode(result).length < 650000) return result;
+  }
+  throw new Error('Immagine troppo grande: usa una versione più leggera.');
+}
+
+export async function syncReferencedImages(data, db, user, appId) {
+  const ids = new Set();
+  function visit(value) {
+    if (!value || typeof value !== 'object') return;
+    if (value.customImageId) ids.add(value.customImageId);
+    Object.values(value).forEach(visit);
+  }
+  visit(data);
+  for (const id of ids) {
+    const bytes = await ensureImageLoaded(id, db, appId);
+    if (!bytes) throw new Error('Immagine '+id+' non disponibile: ricaricala dal backup.');
+    await syncImageToFirestore(db, user, appId, id, bytes);
+  }
 }

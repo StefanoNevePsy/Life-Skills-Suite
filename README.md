@@ -1,8 +1,9 @@
 # Life Skills Suite
 
 App web per attività di educazione socio-affettiva: ruota delle emozioni,
-scenari decisionali, termometro delle emozioni, sessioni Q&A e sondaggi in
-tempo reale.
+scenari decisionali, termometro delle emozioni, metafore visive (fotolinguaggio e blob trees), sessioni Q&A e sondaggi in tempo reale.
+
+> Per una spiegazione dettagliata dell'architettura completa, delle funzionalità e della persistenza dei dati per sviluppatori e AI, consulta il file **[APP_CONTEXT.md](APP_CONTEXT.md)**.
 
 ## Come si lavora
 
@@ -106,3 +107,7 @@ verificate per parità (parser, geometria della ruota e testo dell'interfaccia).
 Da qui in avanti le modifiche vanno fatte in `app/src/` e pubblicate con
 `npm run build`. Modificare i file in `assets/` significa perdere il lavoro al
 build successivo.
+
+## Firebase v2 (branch di preparazione)
+
+Accesso docente persistente, risposte studenti separate e nuovi report: leggere [la guida al rilascio](docs/FIREBASE_V2.md) prima di pubblicare. Il frontend richiede le nuove Security Rules e un account docente abilitato; il solo push non aggiorna Firebase.

@@ -1,8 +1,10 @@
+import { cloudConfigured, teacherLogin } from '../lib/cloudIdentity';
 import React, { useState } from 'react';
 import { Lock, Unlock, Eye, EyeOff, X, ArrowLeft, ShieldCheck } from 'lucide-react';
 import { verifyTeacherPin, loginTeacher, isPinProtectionEnabled } from '../lib/security';
 
 export default function TeacherPinModal({ isOpen, onClose, onSuccess, dbData }) {
+  const [email, setEmail] = useState('');
   const [pin, setPin] = useState('');
   const [showPin, setShowPin] = useState(false);
   const [remember, setRemember] = useState(true);
@@ -11,7 +13,8 @@ export default function TeacherPinModal({ isOpen, onClose, onSuccess, dbData }) 
 
   if (!isOpen) return null;
 
-  const pinConfigured = isPinProtectionEnabled(dbData);
+  const cloud = cloudConfigured();
+  const pinConfigured = cloud || isPinProtectionEnabled(dbData);
 
   const handleSubmit = async (e) => {
     if (e) e.preventDefault();
@@ -31,7 +34,7 @@ export default function TeacherPinModal({ isOpen, onClose, onSuccess, dbData }) 
     setError('');
 
     try {
-      const isValid = await verifyTeacherPin(pin, dbData);
+      const isValid = cloud ? (await teacherLogin(email, pin, remember), true) : await verifyTeacherPin(pin, dbData);
       if (isValid) {
         loginTeacher(remember);
         setPin('');
@@ -60,17 +63,18 @@ export default function TeacherPinModal({ isOpen, onClose, onSuccess, dbData }) 
           <h2 className="text-2xl font-black text-gray-900 tracking-tight">Area Docente</h2>
           <p className="text-xs text-gray-500 font-bold mt-1">
             {pinConfigured 
-              ? 'Inserisci il PIN Docente per accedere alla Dashboard e alle impostazioni.'
+              ? (cloud ? 'Accedi con l’account docente abilitato. Gli studenti hanno un accesso separato.' : 'Inserisci il PIN Docente.')
               : 'Nessun PIN ancora impostato per quest\'aula. Clicca per accedere alla Dashboard.'}
           </p>
         </div>
 
         {/* Form di inserimento */}
         <form onSubmit={handleSubmit} className="space-y-4">
+          {cloud && <label className="block font-bold">Email docente<input type="email" autoComplete="username" required value={email} onChange={e => setEmail(e.target.value)} className="w-full border-2 border-black rounded-xl p-3" /></label>}
           {pinConfigured && (
             <div>
               <label className="block text-xs font-black uppercase text-gray-600 mb-1.5 tracking-wider">
-                PIN Docente:
+                {cloud ? 'Password:' : 'PIN Docente:'}
               </label>
               <div className="relative">
                 <input
@@ -81,7 +85,8 @@ export default function TeacherPinModal({ isOpen, onClose, onSuccess, dbData }) 
                     setPin(e.target.value);
                     setError('');
                   }}
-                  placeholder="Inserisci il PIN..."
+                  autoComplete={cloud ? "current-password" : "off"}
+                  placeholder={cloud ? "Password" : "PIN"}
                   className="w-full text-center text-2xl font-mono font-black tracking-widest p-3.5 rounded-2xl border-2 border-gray-300 focus:border-black outline-none bg-gray-50 transition-all"
                 />
                 <button
@@ -109,7 +114,7 @@ export default function TeacherPinModal({ isOpen, onClose, onSuccess, dbData }) 
               onChange={(e) => setRemember(e.target.checked)}
               className="w-4 h-4 rounded text-black accent-black cursor-pointer"
             />
-            <span>Resta autenticato su questo computer (consigliato)</span>
+            <span>Resta autenticato su questo computer personale</span>
           </label>
 
           <div className="pt-2 flex flex-col gap-2">

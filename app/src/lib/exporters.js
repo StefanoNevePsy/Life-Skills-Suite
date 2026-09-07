@@ -1,3 +1,4 @@
+import { clusterMarkers, photoReport, placeBadges } from './reportData';
 // Esportazione dei risultati di una sessione.
 // Supporta esportazione XLSX, SVG vettoriale e immagini per tutte le modalità.
 
@@ -353,4 +354,165 @@ export function exportSessionImage(session, sessionCode, showNames = true) {
   } else if (session.type === 'wordcloud') {
     exportWordcloudSVG(sessionCode);
   }
+}
+
+/**
+ * Esporta le scelte del Fotolinguaggio (Metafore Visive) in formato Excel XLSX.
+ */
+export function exportMetaphorImagesXLSX(sessionData, sessionCode, showNames = true) {
+  if (typeof XLSX === 'undefined') return alert('Libreria XLSX non disponibile.');
+  const report = photoReport(sessionData, showNames);
+  const wb = XLSX.utils.book_new();
+  for (const [name, rows] of [['Scelte studenti', report.rows], ['Immagini e nomi', report.byImage]]) {
+    const sheet = XLSX.utils.json_to_sheet(rows.length ? rows : [{ Note: 'Nessuna scelta registrata' }]);
+    sheet['!cols'] = Object.keys(rows[0] || {}).map(key => ({ wch: key === 'Studenti' ? 80 : 28 }));
+    if (sheet['!ref']) sheet['!autofilter'] = { ref: sheet['!ref'] };
+    XLSX.utils.book_append_sheet(wb, sheet, name);
+  }
+  XLSX.writeFile(wb, `fotolinguaggio_${sessionCode}.xlsx`);
+}
+
+/**
+ * Esporta le posizioni del Blob Tree in formato Excel XLSX.
+ */
+export function exportBlobTreeXLSX(sessionData, sessionCode, showNames = true) {
+  if (typeof XLSX === 'undefined') {
+    alert('Libreria XLSX non disponibile.');
+    return;
+  }
+
+  const wb = XLSX.utils.book_new();
+  const participants = Object.values(sessionData.participants || {});
+
+  // Estrai tutti i segnaposti
+  const allMarkers = [];
+  participants.forEach((p, pIdx) => {
+    const studentLabel = showNames && p.studentName && p.studentName.trim()
+      ? p.studentName.trim()
+      : (showNames ? 'Anonimo' : `Studente ${pIdx + 1}`);
+
+    const markers = Array.isArray(p.markers) ? p.markers : [];
+    markers.forEach((m) => {
+      allMarkers.push({
+        ...m,
+        studentName: studentLabel,
+        participantTimestamp: p.timestamp,
+      });
+    });
+  });
+
+  const rows = allMarkers.map((m, idx) => ({
+    '#': idx + 1,
+    'Studente': m.studentName || 'Anonimo',
+    'Posizione X (%)': typeof m.x === 'number' ? m.x.toFixed(1) + '%' : m.x,
+    'Posizione Y (%)': typeof m.y === 'number' ? m.y.toFixed(1) + '%' : m.y,
+    'Colore': m.color || '#FACC15',
+    'Nota / Commento': showNames ? m.note || '' : '',
+    'Data e Ora': m.createdAt || m.participantTimestamp ? new Date(m.createdAt || m.participantTimestamp).toLocaleString('it-IT') : '',
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(rows.length > 0 ? rows : [{ Note: 'Nessun segnaposto registrato.' }]);
+  ws['!cols'] = [{ wch: 6 }, { wch: 28 }, { wch: 16 }, { wch: 16 }, { wch: 12 }, { wch: 35 }, { wch: 22 }];
+  XLSX.utils.book_append_sheet(wb, ws, 'Posizioni Blob Tree');
+
+  // Info Sessione
+  const infoRows = [
+    { Voce: 'Tipo Attività', Valore: 'Blob Tree (Scenari Interattivi)' },
+    { Voce: 'Codice Sessione', Valore: sessionCode },
+    { Voce: 'Scenario Utilizzato', Valore: sessionData.setTitle || sessionData.setId || 'Classico' },
+    { Voce: 'Posizioni Max per Studente', Valore: sessionData.maxSelections || 1 },
+    { Voce: 'Totale Studenti', Valore: participants.length },
+    { Voce: 'Totale Segnaposti Mappati', Valore: allMarkers.length },
+    { Voce: 'Data Esportazione', Valore: new Date().toLocaleString('it-IT') },
+  ];
+  const wsInfo = XLSX.utils.json_to_sheet(infoRows);
+  wsInfo['!cols'] = [{ wch: 30 }, { wch: 40 }];
+  XLSX.utils.book_append_sheet(wb, wsInfo, 'Info Sessione');
+
+  XLSX.writeFile(wb, `blob_tree_${sessionCode}.xlsx`);
+}
+
+/**
+ * Esporta il riepilogo in testo semplice (TXT) per Fotolinguaggio o Blob Tree.
+ */
+export function exportMetaphorSummaryTXT(text, filename = 'riepilogo.txt') {
+  downloadBlob(text, filename, 'text/plain;charset=utf-8');
+}
+
+/**
+ * Genera ed esporta un'immagine PNG ad alta risoluzione del Blob Tree
+ * con tutti i segnaposti e i nomi dei ragazzi sovrimpressi tramite Canvas.
+ */
+export async function exportBlobTreeImageCanvas({ imageSrc, markers = [], sessionCode = 'BLOB', scenarioTitle = 'Blob Tree', showNames = true, clusterRadius = 38 }) {
+  try {
+    if (!imageSrc) throw new Error('Immagine di sfondo non disponibile.');
+    const img = new Image(); img.crossOrigin = 'anonymous';
+    await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = () => reject(new Error('Impossibile caricare lo sfondo.')); img.src = imageSrc; });
+    const imageWidth = 1400;
+    const imageHeight = Math.round(imageWidth * img.naturalHeight / img.naturalWidth);
+    const groups = clusterMarkers(markers, imageWidth, imageHeight, clusterRadius);
+    const margin = 48, header = 130, legendWidth = 620, gap = 48;
+    const canvas = document.createElement('canvas');
+    let ctx = canvas.getContext('2d');
+    ctx.font = '24px system-ui';
+    const wrap = (value, maxWidth) => {
+      const lines = []; let line = '';
+      for (const char of String(value)) {
+        if (char === '\n' || ctx.measureText(line + char).width > maxWidth) { lines.push(line); line = char === '\n' ? '' : char; }
+        else line += char;
+      }
+      if (line) lines.push(line);
+      return lines;
+    };
+    const entries = groups.map(g => ({ ...g, lines: g.members.flatMap(m => wrap(showNames ? (m.studentName || 'Senza nome') : `Partecipante ${m.participantNumber || m.sourceIndex+1}`, legendWidth - 90)) }));
+    const legendHeight = entries.reduce((n,g) => n + Math.max(56, g.lines.length * 32 + 24), 60);
+    canvas.width = margin * 2 + imageWidth + gap + legendWidth;
+    canvas.height = header + Math.max(imageHeight, legendHeight) + margin;
+    ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle = '#111827'; ctx.font = 'bold 32px system-ui';
+    ctx.fillText(`Blob Tree · ${scenarioTitle}`, margin, 48, canvas.width - margin*2);
+    ctx.font = '22px system-ui';
+    ctx.fillText(`Sessione ${sessionCode} · ${markers.length} posizioni · ${groups.length} gruppi · ${new Date().toLocaleDateString('it-IT')}`, margin, 88);
+    ctx.drawImage(img, margin, header, imageWidth, imageHeight);
+    for (const group of placeBadges(groups, imageWidth, imageHeight)) {
+      const x = margin+group.x, y = header+group.y;
+      // Small original dots remain as evidence of the grouping; numbered badges are clamped inside the image.
+      ctx.fillStyle = '#111827';
+      for (const member of group.members) { ctx.beginPath(); ctx.arc(margin+member.px,header+member.py,4,0,Math.PI*2); ctx.fill(); }
+      const bx = Math.min(margin+imageWidth-24,Math.max(margin+24,x));
+      const by = Math.min(header+imageHeight-24,Math.max(header+24,y));
+      ctx.beginPath(); ctx.moveTo(margin+group.anchorX,header+group.anchorY);ctx.lineTo(bx,by);ctx.strokeStyle='#374151';ctx.lineWidth=2;ctx.stroke();
+      ctx.beginPath(); ctx.arc(bx,by,23,0,Math.PI*2); ctx.fillStyle='#fde047';ctx.fill();ctx.strokeStyle='#111827';ctx.lineWidth=3;ctx.stroke();
+      ctx.font='bold 23px system-ui';ctx.fillStyle='#111827';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(String(group.number),bx,by);
+    }
+    ctx.textAlign='left';ctx.textBaseline='alphabetic';
+    const lx = margin+imageWidth+gap;
+    ctx.font='bold 26px system-ui';ctx.fillStyle='#111827';ctx.fillText(showNames ? 'Gruppi e nomi' : 'Gruppi e partecipanti',lx,header+28);
+    let y=header+68;
+    for (const group of entries) {
+      ctx.font='bold 25px system-ui';ctx.fillText(String(group.number)+'.',lx,y);
+      ctx.font='24px system-ui';
+      for (const line of group.lines) { ctx.fillText(line,lx+65,y); y+=32; }
+      y+=24;
+    }
+    const blob = await new Promise(resolve => canvas.toBlob(resolve,'image/png'));
+    if (!blob) throw new Error('Immagine troppo grande per questo dispositivo.');
+    const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=`blob_tree_${sessionCode}_gruppi.png`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  } catch (error) { alert('Esportazione non riuscita: '+error.message); }
+}
+
+/** Helper per disegnare rettangoli arrotondati su Canvas */
+function roundRect(ctx, x, y, width, height, radius) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
 }

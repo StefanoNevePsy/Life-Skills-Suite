@@ -137,8 +137,21 @@ export function saveUsername(u) {
 
 /** Namespace delle collection Firestore, derivato dal nome utente. */
 export function getAppId() {
+  if (import.meta.env.VITE_WORKSPACE_ID) return import.meta.env.VITE_WORKSPACE_ID;
   const uname = getUsername();
   return uname ? 'lifeskills-' + uname.toLowerCase().replace(/[^a-z0-9_-]/g, '_') : 'lifeskills-default';
 }
 
 export { EMPTY_FB as DEFAULT_FB };
+
+/** Public client config is already bundled for a centrally configured deployment. */
+export function sessionLink(code, mode = '') {
+  const url = new URL(location.origin + location.pathname);
+  url.searchParams.set('session', code);
+  if (mode) url.searchParams.set('mode', mode);
+  const config = getFBConfig();
+  if (!import.meta.env.VITE_FIREBASE_PROJECT_ID || config.projectId !== import.meta.env.VITE_FIREBASE_PROJECT_ID) {
+    url.searchParams.set('fb', encodeFBConfig(config));
+  }
+  return url.toString();
+}

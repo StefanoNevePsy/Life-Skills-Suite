@@ -1,11 +1,15 @@
+import { sessionLink } from '../lib/firebaseConfig';
+import { newSessionCode } from '../lib/sessionCode';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   ArrowLeft, ArrowRight, Search, X, Plus, Trash2, Edit, Copy, Check, 
   ChevronLeft, ChevronRight, Maximize2, Users, Sparkles, 
   Filter, Grid, LayoutGrid, Download, RefreshCw, FileText,
-  SlidersHorizontal, CheckCircle2, Settings, EyeOff, Trees,
-  Image as ImageIcon
+  SlidersHorizontal, CheckCircle2, Settings, Eye, EyeOff, Trees,
+  Image as ImageIcon, Radio, QrCode, Share2, FileSpreadsheet, Globe,
+  CheckCircle, Loader2
 } from 'lucide-react';
+import { doc, collection, setDoc, updateDoc, onSnapshot } from '../lib/sessionStore';
 import FullscreenButton from './FullscreenButton';
 import VisualMetaphorsManager from './VisualMetaphorsManager';
 import BlobTreeView from './BlobTreeView';
@@ -24,9 +28,11 @@ import {
   resolveImageSrc,
   resolveBlobImageSrc
 } from '../lib/customImageStorage';
+import { getFBConfig, encodeFBConfig } from '../lib/firebaseConfig';
+import { exportMetaphorImagesXLSX, exportMetaphorSummaryTXT } from '../lib/exporters';
 
 export default function VisualMetaphorsView({ data, onUpdateData, onBack, db, user, appId }) {
-  const [, setForceUpdate] = useState(0);
+  const [imageVersion, setForceUpdate] = useState(0);
 
   // Carica all'avvio tutte le immagini personalizzate salvate in IndexedDB
   useEffect(() => {
@@ -41,7 +47,7 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack, db, us
   const vmState = useMemo(() => {
     const raw = ensureVisualMetaphorsState(data?.visual_metaphors);
     return hydrateVisualMetaphors(raw);
-  }, [data]);
+  }, [data, imageVersion]);
 
   // Assicura che le immagini custom siano caricate in memoria (IndexedDB prima, poi Cloud Firestore)
   useEffect(() => {
@@ -121,6 +127,185 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack, db, us
 
   // Sezione attiva: null (Hub iniziale di selezione), 'photolanguage', 'blob_tree'
   const [selectedSection, setSelectedSection] = useState(null);
+
+  // --- STATO SESSIONE ONLINE (FOTOLINGUAGGIO) ---
+  const [onlineSessionCode, setOnlineSessionCode] = useState(null);
+  const [onlineSessionData, setOnlineSessionData] = useState(null);
+  const [isOnlineSetupOpen, setIsOnlineSetupOpen] = useState(false);
+  const [isOnlineQrOpen, setIsOnlineQrOpen] = useState(false);
+  const [onlineMaxSelections, setOnlineMaxSelections] = useState(1);
+  const [onlineShowNames, setOnlineShowNames] = useState(true);
+  const [onlineSetId, setOnlineSetId] = useState(vmState.activeSetId || 'etp');
+  const [loadingOnline, setLoadingOnline] = useState(false);
+  const [onlineQrDataUrl, setOnlineQrDataUrl] = useState('');
+
+  // Sincronizzazione in tempo reale con Firestore per la sessione online attiva
+  useEffect(() => {
+    if (!db || !onlineSessionCode) return;
+    const sessionRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'feedback_sessions'), onlineSessionCode);
+    const unsubscribe = onSnapshot(sessionRef, (snap) => {
+      if (snap.exists()) {
+        const d = snap.data();
+        setOnlineSessionData(d);
+        if (typeof d.showNames === 'boolean') {
+          setOnlineShowNames(d.showNames);
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, [db, onlineSessionCode, appId]);
+
+  // Generazione URL e QR Code per gli studenti
+  const cleanBaseUrl = window.location.origin + window.location.pathname;
+  const fbEncoded = encodeFBConfig(getFBConfig());
+  const onlineJoinUrl = onlineSessionCode ? sessionLink(onlineSessionCode) : '';
+
+  useEffect(() => {
+    if (onlineJoinUrl && typeof window.QRCode !== 'undefined') {
+      window.QRCode.toDataURL(onlineJoinUrl, { width: 320, margin: 1 })
+        .then(url => setOnlineQrDataUrl(url))
+        .catch(() => {});
+    }
+  }, [onlineJoinUrl]);
+
+  // Mappa delle scelte degli studenti nella sessione online
+  const onlineParticipants = useMemo(() => {
+    return Object.values(onlineSessionData?.participants || {});
+  }, [onlineSessionData]);
+
+  const onlineAssignments = useMemo(() => {
+    if (!onlineSessionCode || !onlineSessionData?.participants) return {};
+    const map = {};
+    Object.values(onlineSessionData.participants).forEach(p => {
+      const studentName = p.studentName && p.studentName.trim() ? p.studentName.trim() : 'Anonimo';
+      (p.selectedImageIds || []).forEach(imgId => {
+        if (!map[imgId]) map[imgId] = [];
+        map[imgId].push(studentName);
+      });
+    });
+    return map;
+  }, [onlineSessionCode, onlineSessionData]);
+
+  // Assegnazioni attive (usa quelle online se la sessione online è attiva, altrimenti la locale)
+  const activeAssignments = useMemo(() => {
+    return onlineSessionCode ? onlineAssignments : (activeSession?.assignments || {});
+  }, [onlineSessionCode, onlineAssignments, activeSession]);
+
+  // Avvio di una nuova sessione online
+  const handleStartOnlineSession = async () => {
+    if (!db) {
+      alert("Configura prima Firebase nelle Impostazioni per avviare sessioni online.");
+      return;
+    }
+    setLoadingOnline(true);
+    try {
+      const targetSet = vmState.sets.find(s => s.id === onlineSetId) || activeSet;
+      const setImages = (targetSet?.images || []).filter(img => !img.hidden).map(img => ({
+        id: img.id,
+        number: img.number,
+        title: img.title || `Immagine #${img.id}`,
+        src: img.src,
+        customImageId: img.customImageId || null
+      }));
+
+      const code = newSessionCode();
+      const sessionRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'feedback_sessions'), code);
+
+      await setDoc(sessionRef, {
+        type: 'metaphor_images',
+        active: true,
+        createdAt: new Date().toISOString(),
+        setId: targetSet.id,
+        setTitle: targetSet.title,
+        images: setImages,
+        maxSelections: Number(onlineMaxSelections) || 1,
+        showNames: onlineShowNames !== false,
+        participants: {}
+      });
+
+      setOnlineSessionCode(code);
+      setIsOnlineSetupOpen(false);
+      setIsOnlineQrOpen(true);
+    } catch (err) {
+      console.error("Errore avvio sessione online fotolinguaggio:", err);
+      alert("Errore durante l'avvio della sessione online.");
+    } finally {
+      setLoadingOnline(false);
+    }
+  };
+
+  // Toggle stato aperta / chiusa
+  const toggleOnlineStatus = async () => {
+    if (!db || !onlineSessionCode || !onlineSessionData) return;
+    try {
+      const sessionRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'feedback_sessions'), onlineSessionCode);
+      await updateDoc(sessionRef, { active: !onlineSessionData.active });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Toggle visibilità nomi in tempo reale
+  const toggleOnlineShowNames = async () => {
+    const nextVal = !onlineShowNames;
+    setOnlineShowNames(nextVal);
+    if (db && onlineSessionCode) {
+      try {
+        const sessionRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'feedback_sessions'), onlineSessionCode);
+        await updateDoc(sessionRef, { showNames: nextVal });
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
+
+  // Termina sessione online
+  const handleEndOnlineSession = () => {
+    if (!onlineSessionCode) return;
+    const count = onlineParticipants.length;
+    if (count > 0) {
+      const doImport = window.confirm(
+        `La sessione online ha registrato le scelte di ${count} ${count === 1 ? 'studente' : 'studenti'}.\n\nVuoi importare queste scelte nella sessione locale "${activeSession?.name || 'Corrente'}" prima di chiudere?`
+      );
+      if (doImport && activeSession) {
+        updateVmState(prev => {
+          const current = { ...(activeSession.assignments || {}) };
+          Object.entries(onlineAssignments).forEach(([imgId, names]) => {
+            const existing = current[imgId] || [];
+            const merged = Array.from(new Set([...existing, ...names]));
+            current[imgId] = merged;
+          });
+          return {
+            ...prev,
+            sessions: prev.sessions.map(s => s.id === activeSession.id ? { ...s, assignments: current } : s)
+          };
+        });
+      }
+    }
+    setOnlineSessionCode(null);
+    setOnlineSessionData(null);
+  };
+
+  // Download TXT Sessione Online
+  const handleDownloadOnlineTxt = () => {
+    if (!onlineSessionData) return;
+    let txt = `====================================================\n`;
+    txt += `LIFESKILLS SUITE • METAFORE VISIVE (FOTOLINGUAGGIO)\n`;
+    txt += `Sessione Online: ${onlineSessionCode}\n`;
+    txt += `Set: ${onlineSessionData.setTitle || onlineSessionData.setId}\n`;
+    txt += `Max scelte per studente: ${onlineSessionData.maxSelections || 1}\n`;
+    txt += `Partecipanti: ${onlineParticipants.length}\n`;
+    txt += `Data: ${new Date().toLocaleString('it-IT')}\n`;
+    txt += `====================================================\n\n`;
+
+    onlineParticipants.forEach((p, idx) => {
+      const name = onlineShowNames ? p.studentName : `Studente ${idx + 1}`;
+      const picks = (p.selectedImageIds || []).map(id => `#${id}`).join(', ');
+      txt += `${idx + 1}. ${name} -> Immagini: ${picks || 'Nessuna'}\n`;
+    });
+
+    exportMetaphorSummaryTXT(txt, `fotolinguaggio_${onlineSessionCode}.txt`);
+  };
 
   // Aggiorna lo stato globale
   const updateVmState = (updater) => {
@@ -230,9 +415,9 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack, db, us
   }, [lightboxImageId, activeSet]);
 
   const assignedToLightbox = useMemo(() => {
-    if (!lightboxImageId || !activeSession?.assignments) return [];
-    return activeSession.assignments[lightboxImageId] || [];
-  }, [lightboxImageId, activeSession]);
+    if (!lightboxImageId) return [];
+    return activeAssignments[lightboxImageId] || [];
+  }, [lightboxImageId, activeAssignments]);
 
   // Helper navigazione tra immagini visibili nel Lightbox
   const handlePrevLightboxImage = () => {
@@ -283,7 +468,7 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack, db, us
   const filteredImages = useMemo(() => {
     if (!activeSet?.images) return [];
     const query = searchQuery.trim().toLowerCase();
-    const assignments = activeSession?.assignments || {};
+    const assignments = activeAssignments;
 
     return activeSet.images.filter(img => {
       // Non mostrare le immagini nascoste dal docente
@@ -305,18 +490,18 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack, db, us
 
       return true;
     });
-  }, [activeSet, activeSession, searchQuery, filterMode]);
+  }, [activeSet, activeAssignments, searchQuery, filterMode]);
 
   // Conteggi globali
   const chosenCount = useMemo(() => {
-    const assignments = activeSession?.assignments || {};
+    const assignments = activeAssignments;
     return Object.keys(assignments).filter(id => (assignments[id] || []).length > 0).length;
-  }, [activeSession]);
+  }, [activeAssignments]);
 
   const totalStudentsAssigned = useMemo(() => {
-    const assignments = activeSession?.assignments || {};
+    const assignments = activeAssignments;
     return Object.values(assignments).reduce((acc, arr) => acc + (arr?.length || 0), 0);
-  }, [activeSession]);
+  }, [activeAssignments]);
 
   // Copia riepilogo
   const handleCopySummary = () => {
@@ -626,10 +811,152 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack, db, us
             </span>
           </button>
 
+          {/* Pulsante Sessione Online Live */}
+          <button
+            type="button"
+            onClick={() => {
+              if (!db) {
+                alert("Per creare sessioni online con gli studenti, connetti prima Firebase nelle Impostazioni (icona ingranaggio nella barra della Dashboard).");
+                return;
+              }
+              if (onlineSessionCode) {
+                setIsOnlineQrOpen(true);
+              } else {
+                setOnlineSetId(vmState.activeSetId || 'etp');
+                setIsOnlineSetupOpen(true);
+              }
+            }}
+            className={`flex items-center gap-1.5 px-3.5 py-2 font-black text-xs uppercase tracking-wider rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer ${
+              onlineSessionCode
+                ? 'bg-emerald-400 text-black animate-pulse'
+                : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-900'
+            }`}
+            title="Avvia una sessione online per far scegliere le immagini agli studenti dal proprio smartphone"
+          >
+            <Radio size={14} className={onlineSessionCode ? 'text-black' : 'text-emerald-700'} />
+            <span>{onlineSessionCode ? `Live: ${onlineSessionCode}` : 'Sessione Online'}</span>
+          </button>
+
           {/* Schermo Intero */}
           <FullscreenButton className="border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] rounded-xl" />
         </div>
       </nav>
+
+      {/* ========================================================================= */}
+      {/* BANNER SESSIONE ONLINE FOTOLINGUAGGIO ATTIVA */}
+      {/* ========================================================================= */}
+      {onlineSessionCode && (
+        <section className="max-w-7xl mx-auto w-full mb-6 bg-white/95 backdrop-blur-sm p-4 rounded-3xl border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] animate-in slide-in-from-top-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+
+            {/* GRUPPO 1: CODICE STANZA & STATO */}
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <div
+                onClick={() => {
+                  navigator.clipboard.writeText(onlineSessionCode);
+                  alert(`Codice stanza ${onlineSessionCode} copiato negli appunti!`);
+                }}
+                className="bg-black text-yellow-300 px-3.5 py-1.5 rounded-xl font-mono font-black text-lg tracking-wider cursor-pointer hover:scale-105 transition-transform flex items-center gap-2 shadow-sm"
+                title="Clicca per copiare il codice stanza"
+              >
+                <Radio size={16} className="text-yellow-400 animate-pulse" />
+                <span>{onlineSessionCode}</span>
+                <Copy size={13} className="opacity-60 hover:opacity-100" />
+              </div>
+
+              {/* STATO APERTA / CHIUSA */}
+              <button
+                type="button"
+                onClick={toggleOnlineStatus}
+                className={`px-3 py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5 border-2 transition-all cursor-pointer ${
+                  onlineSessionData?.active
+                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200'
+                    : 'bg-rose-100 text-rose-800 border-rose-300 hover:bg-rose-200'
+                }`}
+                title="Clicca per aprire o chiudere la ricezione delle scelte"
+              >
+                <span className={`w-2 h-2 rounded-full ${onlineSessionData?.active ? 'bg-emerald-600 animate-ping' : 'bg-rose-600'}`} />
+                <span>{onlineSessionData?.active ? 'APERTA' : 'CHIUSA'}</span>
+              </button>
+
+              {/* CONTATORE PARTECIPANTI ONLINE */}
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-100 border-2 border-black rounded-xl font-black text-xs text-yellow-950">
+                <Users size={14} className="text-yellow-800" />
+                <span>{onlineParticipants.length} {onlineParticipants.length === 1 ? 'partecipante' : 'partecipanti'}</span>
+              </div>
+
+              <div className="text-[11px] font-bold text-gray-500 hidden md:inline">
+                Max: {onlineSessionData?.maxSelections || 1} {Number(onlineSessionData?.maxSelections) === 1 ? 'foto' : 'foto'} a testa
+              </div>
+            </div>
+
+            {/* GRUPPO 2: AZIONI (TOGGLE NOMI, QR LIM, ESPORTA, TERMINA) */}
+            <div className="flex items-center gap-2 flex-wrap">
+
+              {/* TOGGLE MOSTRA / NASCONDI NOMI */}
+              <button
+                type="button"
+                onClick={toggleOnlineShowNames}
+                className={`px-3 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider border-2 border-black flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer ${
+                  onlineShowNames
+                    ? 'bg-white hover:bg-gray-100 text-black'
+                    : 'bg-amber-300 text-black ring-2 ring-black'
+                }`}
+                title={onlineShowNames ? "Nascondi i nomi degli studenti alla lavagna per garantire l'anonimato" : "Mostra i nomi degli studenti alla lavagna"}
+              >
+                {onlineShowNames ? <Eye size={14} /> : <EyeOff size={14} />}
+                <span>{onlineShowNames ? 'Nomi Visibili' : 'Nomi Anonimi'}</span>
+              </button>
+
+              {/* PULSANTE QR CODE LIM */}
+              <button
+                type="button"
+                onClick={() => setIsOnlineQrOpen(true)}
+                className="px-3 py-1.5 bg-yellow-300 hover:bg-yellow-400 text-black font-black text-xs uppercase tracking-wider rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all flex items-center gap-1.5 cursor-pointer"
+                title="Mostra QR Code a tutto schermo per gli studenti"
+              >
+                <QrCode size={14} />
+                <span>QR Code LIM</span>
+              </button>
+
+              {/* ESPORTAZIONE XLSX */}
+              <button
+                type="button"
+                onClick={() => exportMetaphorImagesXLSX(onlineSessionData || {}, onlineSessionCode, onlineShowNames)}
+                className="px-3 py-1.5 bg-white hover:bg-emerald-100 text-emerald-900 font-black text-xs uppercase tracking-wider rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all flex items-center gap-1.5 cursor-pointer"
+                title="Esporta foglio Excel con l'elenco delle scelte e partecipanti"
+              >
+                <FileSpreadsheet size={14} className="text-emerald-700" />
+                <span>Excel (XLSX)</span>
+              </button>
+
+              {/* ESPORTAZIONE TXT */}
+              <button
+                type="button"
+                onClick={handleDownloadOnlineTxt}
+                className="px-3 py-1.5 bg-white hover:bg-gray-100 text-black font-black text-xs uppercase tracking-wider rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all flex items-center gap-1.5 cursor-pointer"
+                title="Scarica riepilogo in formato testo semplice"
+              >
+                <Download size={14} />
+                <span>TXT</span>
+              </button>
+
+              {/* TERMINA SESSIONE ONLINE */}
+              <button
+                type="button"
+                onClick={handleEndOnlineSession}
+                className="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-800 font-black text-xs uppercase tracking-wider rounded-xl border-2 border-rose-400 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all flex items-center gap-1 cursor-pointer"
+                title="Chiudi definitivamente questa sessione online"
+              >
+                <X size={14} />
+                <span>Termina</span>
+              </button>
+
+            </div>
+
+          </div>
+        </section>
+      )}
       {/* ========================================================================= */}
       {/* 2. HERO / BARRA FILTRI & CONTROLLI GRIGLIA */}
       {/* ========================================================================= */}
@@ -751,7 +1078,7 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack, db, us
             'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6'
           }`}>
             {filteredImages.map(img => {
-              const assignedStudents = activeSession?.assignments?.[img.id] || [];
+              const assignedStudents = activeAssignments[img.id] || [];
               const isChosen = assignedStudents.length > 0;
 
               return (
@@ -803,27 +1130,38 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack, db, us
                   <div className="p-2.5 bg-[#FFFDF9] flex-1 flex flex-col justify-between gap-2">
                     {isChosen ? (
                       <div className="space-y-1">
-                        <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto custom-scrollbar">
-                          {assignedStudents.map((name, idx) => (
-                            <span
-                              key={idx}
-                              className="inline-flex items-center gap-1 bg-yellow-200 text-black border border-black px-2 py-0.5 rounded-md font-black text-[11px] leading-tight"
-                            >
-                              <span>{name}</span>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleRemoveStudent(img.id, name);
-                                }}
-                                className="hover:text-rose-700 p-0.5 rounded-xs"
-                                title={`Rimuovi ${name}`}
+                        {(!onlineSessionCode || onlineShowNames) ? (
+                          <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto custom-scrollbar">
+                            {assignedStudents.map((name, idx) => (
+                              <span
+                                key={idx}
+                                className="inline-flex items-center gap-1 bg-yellow-200 text-black border border-black px-2 py-0.5 rounded-md font-black text-[11px] leading-tight"
                               >
-                                <X size={10} className="stroke-[3]" />
-                              </button>
+                                <span>{name}</span>
+                                {!onlineSessionCode && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleRemoveStudent(img.id, name);
+                                    }}
+                                    className="hover:text-rose-700 p-0.5 rounded-xs"
+                                    title={`Rimuovi ${name}`}
+                                  >
+                                    <X size={10} className="stroke-[3]" />
+                                  </button>
+                                )}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="bg-amber-100/70 border border-amber-300 rounded-lg p-1.5 text-center">
+                            <span className="text-[11px] font-black text-amber-900 flex items-center justify-center gap-1">
+                              <EyeOff size={12} />
+                              <span>{assignedStudents.length} {assignedStudents.length === 1 ? 'scelta' : 'scelte'} (Anonimo)</span>
                             </span>
-                          ))}
-                        </div>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <p className="text-[11px] font-bold text-gray-400 italic">
@@ -835,10 +1173,10 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack, db, us
                     <button
                       type="button"
                       onClick={() => setLightboxImageId(img.id)}
-                      className="w-full py-1.5 px-2 rounded-xl text-[11px] font-black uppercase tracking-wider bg-white hover:bg-yellow-300 text-black border-2 border-black transition-colors flex items-center justify-center gap-1 shadow-xs"
+                      className="w-full py-1.5 px-2 rounded-xl text-[11px] font-black uppercase tracking-wider bg-white hover:bg-yellow-300 text-black border-2 border-black transition-colors flex items-center justify-center gap-1 shadow-xs cursor-pointer"
                     >
                       <Plus size={13} className="stroke-[3]" />
-                      <span>{isChosen ? 'Modifica Scelta' : 'Assegna Alunno'}</span>
+                      <span>{onlineSessionCode ? 'Dettaglio Scelte' : (isChosen ? 'Modifica Scelta' : 'Assegna Alunno')}</span>
                     </button>
                   </div>
                 </div>
@@ -924,6 +1262,20 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack, db, us
                     <span className="text-xs font-bold text-gray-400 italic">
                       Nessun alunno ha ancora scelto questa foto.
                     </span>
+                  ) : onlineSessionCode && !onlineShowNames ? (
+                    <div className="flex items-center gap-2">
+                      <span className="bg-amber-100 border-2 border-amber-300 text-amber-900 px-3 py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5">
+                        <EyeOff size={14} />
+                        <span>{assignedToLightbox.length} {assignedToLightbox.length === 1 ? 'studente' : 'studenti'} (Nomi anonimi)</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={toggleOnlineShowNames}
+                        className="text-xs font-black underline text-black hover:text-amber-800 cursor-pointer"
+                      >
+                        Svela Nomi
+                      </button>
+                    </div>
                   ) : (
                     assignedToLightbox.map((name, idx) => (
                       <span
@@ -931,14 +1283,16 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack, db, us
                         className="inline-flex items-center gap-1.5 bg-yellow-300 text-black border-2 border-black px-2.5 py-1 rounded-xl font-black text-xs shadow-xs"
                       >
                         <span>{name}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveStudent(lightboxImage.id, name)}
-                          className="hover:bg-black hover:text-white rounded-full p-0.5 transition-colors"
-                          title={`Rimuovi ${name}`}
-                        >
-                          <X size={12} className="stroke-[3]" />
-                        </button>
+                        {!onlineSessionCode && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveStudent(lightboxImage.id, name)}
+                            className="hover:bg-black hover:text-white rounded-full p-0.5 transition-colors cursor-pointer"
+                            title={`Rimuovi ${name}`}
+                          >
+                            <X size={12} className="stroke-[3]" />
+                          </button>
+                        )}
                       </span>
                     ))
                   )}
@@ -1257,6 +1611,206 @@ export default function VisualMetaphorsView({ data, onUpdateData, onBack, db, us
           user={user}
           appId={appId}
         />
+      )}
+
+      {/* ========================================================================= */}
+      {/* 9. MODALE CONFIGURAZIONE AVVIO SESSIONE ONLINE FOTOLINGUAGGIO */}
+      {/* ========================================================================= */}
+      {isOnlineSetupOpen && (
+        <div className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] animate-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b-2 border-black mb-4">
+              <div className="flex items-center gap-2">
+                <Radio size={22} className="text-emerald-600" />
+                <h3 className="text-base font-black uppercase text-black">Avvia Sessione Online</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsOnlineSetupOpen(false)}
+                className="p-1 hover:bg-gray-100 rounded-lg text-black cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-xs font-bold text-gray-600 mb-4">
+              I ragazzi potranno collegarsi dal proprio smartphone per scegliere autonomamente la propria immagine.
+            </p>
+
+            {/* SCELTA SET */}
+            <div className="mb-4">
+              <label className="block text-xs font-black uppercase tracking-wider text-gray-700 mb-1.5">
+                Set di Immagini da Utilizzare:
+              </label>
+              <select
+                value={onlineSetId}
+                onChange={(e) => setOnlineSetId(e.target.value)}
+                className="w-full p-2.5 bg-gray-50 border-2 border-black rounded-xl font-bold text-xs text-black outline-none focus:ring-2 focus:ring-yellow-400 cursor-pointer"
+              >
+                {vmState.sets.map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.title} ({s.count} foto)
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* SCELTA MASSIMA SELEZIONI PER STUDENTE */}
+            <div className="mb-4">
+              <label className="block text-xs font-black uppercase tracking-wider text-gray-700 mb-1.5">
+                Quante immagini può scegliere al massimo ciascun ragazzo?
+              </label>
+              <div className="flex items-center gap-2">
+                {[1, 2, 3, 4, 5].map(n => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setOnlineMaxSelections(n)}
+                    className={`flex-1 py-2 rounded-xl border-2 border-black font-black text-xs transition-all cursor-pointer ${
+                      onlineMaxSelections === n
+                        ? 'bg-yellow-300 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] scale-105'
+                        : 'bg-white hover:bg-gray-100 text-gray-700'
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] font-bold text-gray-400 mt-1">
+                {onlineMaxSelections === 1
+                  ? 'Ogni studente sceglierà 1 sola immagine.'
+                  : `Ogni studente potrà scegliere fino a ${onlineMaxSelections} immagini.`}
+              </p>
+            </div>
+
+            {/* TOGGLE VISIBILITÀ NOMI */}
+            <div className="mb-6 p-3.5 bg-yellow-50 border-2 border-black rounded-2xl flex items-center justify-between gap-3">
+              <div>
+                <span className="text-xs font-black uppercase text-black block">Mostra Nomi alla Lavagna</span>
+                <span className="text-[11px] font-bold text-gray-600 block">
+                  {onlineShowNames
+                    ? 'I nomi degli alunni saranno visibili sulle immagini.'
+                    : 'Le immagini mostreranno solo il conteggio anonimo.'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOnlineShowNames(!onlineShowNames)}
+                className={`px-3 py-1.5 rounded-xl border-2 border-black font-black text-xs uppercase tracking-wider cursor-pointer transition-all ${
+                  onlineShowNames
+                    ? 'bg-emerald-300 text-black'
+                    : 'bg-gray-200 text-gray-600'
+                }`}
+              >
+                {onlineShowNames ? 'Sì (Visibili)' : 'No (Anonimi)'}
+              </button>
+            </div>
+
+            {/* AZIONI */}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setIsOnlineSetupOpen(false)}
+                className="flex-1 py-2.5 rounded-xl border-2 border-black font-black text-xs text-gray-700 hover:bg-gray-100 uppercase tracking-wider cursor-pointer"
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                onClick={handleStartOnlineSession}
+                disabled={loadingOnline}
+                className="flex-2 py-2.5 bg-yellow-400 hover:bg-yellow-500 text-black border-2 border-black rounded-xl font-black text-xs uppercase tracking-wider shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                {loadingOnline ? <Loader2 size={16} className="animate-spin" /> : <Radio size={16} />}
+                <span>Avvia Ora</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 10. MODALE QR CODE LIM & LINK DI CONDIVISIONE */}
+      {/* ========================================================================= */}
+      {isOnlineQrOpen && (
+        <div className="fixed inset-0 z-[75] bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full border-4 border-black shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] animate-in zoom-in-95 text-center">
+
+            <div className="flex items-center justify-between pb-3 border-b-2 border-black mb-4">
+              <div className="flex items-center gap-2">
+                <QrCode size={22} className="text-black" />
+                <h3 className="text-base font-black uppercase text-black">Connettiti al Fotolinguaggio</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsOnlineQrOpen(false)}
+                className="p-1 hover:bg-gray-100 rounded-lg text-black cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* CODICE STANZA GIGANTE */}
+            <div className="mb-4">
+              <span className="text-xs font-black uppercase tracking-wider text-gray-500 block mb-1">
+                Codice Stanza per gli Studenti:
+              </span>
+              <div
+                onClick={() => {
+                  navigator.clipboard.writeText(onlineSessionCode);
+                  alert(`Codice stanza ${onlineSessionCode} copiato!`);
+                }}
+                className="inline-block bg-black text-yellow-300 font-mono font-black text-4xl sm:text-5xl px-8 py-3 rounded-2xl border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] tracking-widest cursor-pointer hover:scale-105 transition-transform"
+                title="Clicca per copiare"
+              >
+                {onlineSessionCode}
+              </div>
+            </div>
+
+            {/* IMMAGINE QR CODE */}
+            <div className="bg-yellow-50 border-3 border-black rounded-2xl p-4 inline-block mx-auto mb-4 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+              {onlineQrDataUrl ? (
+                <img
+                  src={onlineQrDataUrl}
+                  alt={`QR Code stanza ${onlineSessionCode}`}
+                  className="w-56 h-56 sm:w-64 sm:h-64 object-contain mx-auto rounded-lg"
+                />
+              ) : (
+                <div className="w-56 h-56 flex items-center justify-center">
+                  <Loader2 size={32} className="animate-spin text-yellow-600" />
+                </div>
+              )}
+            </div>
+
+            <p className="text-xs font-bold text-gray-600 mb-4">
+              Inquadra con lo smartphone o inserisci il codice nella schermata iniziale.
+            </p>
+
+            {/* COPIA LINK DIRETTO */}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(onlineJoinUrl);
+                  alert("Link diretto copiato negli appunti!");
+                }}
+                className="flex-1 py-3 bg-white hover:bg-gray-100 text-black border-2 border-black rounded-xl font-black text-xs uppercase tracking-wider shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Copy size={14} />
+                <span>Copia Link Diretto</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsOnlineQrOpen(false)}
+                className="py-3 px-6 bg-yellow-400 hover:bg-yellow-500 text-black border-2 border-black rounded-xl font-black text-xs uppercase tracking-wider shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
+              >
+                Chiudi
+              </button>
+            </div>
+
+          </div>
+        </div>
       )}
     </div>
   );

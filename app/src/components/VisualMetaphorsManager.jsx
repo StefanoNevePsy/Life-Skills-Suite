@@ -238,9 +238,7 @@ export default function VisualMetaphorsManager({
 
         // 2. Se Firebase è connesso, sincronizza in background nel cloud (un doc per immagine)
         if (db && user && appId) {
-          syncImageToFirestore(db, user, appId, processed.customId, processed.dataUrl).catch((err) => {
-            console.warn('Sync cloud immagine non riuscito:', err);
-          });
+          await syncImageToFirestore(db, user, appId, processed.customId, processed.dataUrl);
         }
 
         newItems.push({

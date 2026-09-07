@@ -1,0 +1,134 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signed() { return request.auth != null; }
+    function teacher() {
+      return signed() && exists(/databases/$(database)/documents/teachers/$(request.auth.uid))
+        && get(/databases/$(database)/documents/teachers/$(request.auth.uid)).data.enabled == true;
+    }
+    function session(code) { return get(/databases/$(database)/documents/sessions/$(code)).data; }
+    function live(code) { return session(code).active == true && session(code).expiresAt > request.time; }
+    match /teachers/{uid} {
+      allow get: if signed() && request.auth.uid == uid;
+      allow list, write: if false;
+    }
+    match /workspaces/{workspace}/materials/{material} {
+      allow read, write: if teacher();
+    }
+    match /artifacts/{workspace}/public/data/lifeskills/{material} {
+      allow read: if teacher();
+      allow write: if false;
+    }
+    match /artifacts/{workspace}/public/data/custom_metaphor_images/{image} {
+      allow read: if teacher();
+      allow create, update: if teacher() && request.resource.data.keys().hasOnly(['id', 'dataUrl', 'updatedAt'])
+        && request.resource.data.dataUrl is string && request.resource.data.dataUrl.size() < 700000;
+      allow delete: if false;
+    }
+    match /sessions/{code} {
+      allow get: if teacher() || (signed() && resource.data.expiresAt > request.time);
+      allow list: if teacher();
+      allow create: if teacher() && code.matches('^[A-Z2-9]{6}$')
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.schemaVersion == 2
+        && request.resource.data.active is bool
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt <= request.time + duration.value(2, 'd')
+        && !request.resource.data.keys().hasAny(['responses', 'participants']);
+      allow update: if teacher()
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['ownerUid', 'appId', 'schemaVersion', 'expiresAt', 'responses', 'participants']);
+      allow delete: if false;
+      match /images/{image} {
+        allow get: if teacher() || (signed() && session(code).expiresAt > request.time && image in session(code).imageIds);
+        allow list: if teacher();
+        allow create, update: if teacher() && request.resource.data.keys().hasOnly(['dataUrl'])
+          && request.resource.data.dataUrl is string && request.resource.data.dataUrl.size() < 700000;
+        allow delete: if false;
+      }
+      match /answers/{answer} {
+        function own() { return signed() && resource.data.uid == request.auth.uid; }
+        function validMarker(m) {
+          return m is map && m.keys().hasOnly(['id','x','y','color','note','createdAt'])
+            && m.id is string && m.id.size() < 100
+            && m.x is number && m.x >= 0 && m.x <= 100
+            && m.y is number && m.y >= 0 && m.y <= 100
+            && m.color is string && m.color.size() <= 20
+            && m.note is string && m.note.size() <= 1000;
+        }
+        function validMarkers(a, maxSelections) {
+          return a is list && a.size() >= 1 && a.size() <= maxSelections && a.size() <= 5
+            && validMarker(a[0])
+            && (a.size() < 2 || validMarker(a[1]))
+            && (a.size() < 3 || validMarker(a[2]))
+            && (a.size() < 4 || validMarker(a[3]))
+            && (a.size() < 5 || validMarker(a[4]));
+        }
+        function textAt(items, index) {
+          return items.size() <= index || (items[index] is string && items[index].size() <= 10000);
+        }
+        function textList(items) {
+          return items is list && items.size() > 0 && items.size() <= 30
+            && textAt(items, 0)
+            && textAt(items, 1)
+            && textAt(items, 2)
+            && textAt(items, 3)
+            && textAt(items, 4)
+            && textAt(items, 5)
+            && textAt(items, 6)
+            && textAt(items, 7)
+            && textAt(items, 8)
+            && textAt(items, 9)
+            && textAt(items, 10)
+            && textAt(items, 11)
+            && textAt(items, 12)
+            && textAt(items, 13)
+            && textAt(items, 14)
+            && textAt(items, 15)
+            && textAt(items, 16)
+            && textAt(items, 17)
+            && textAt(items, 18)
+            && textAt(items, 19)
+            && textAt(items, 20)
+            && textAt(items, 21)
+            && textAt(items, 22)
+            && textAt(items, 23)
+            && textAt(items, 24)
+            && textAt(items, 25)
+            && textAt(items, 26)
+            && textAt(items, 27)
+            && textAt(items, 28)
+            && textAt(items, 29)
+          ;
+        }
+        function valid() {
+          let d = request.resource.data;
+          let s = session(code);
+          return signed() && s.active == true && s.expiresAt > request.time && d.uid == request.auth.uid && d.savedAt == request.time
+            && d.studentName is string && d.studentName.size() >= 2 && d.studentName.size() <= 100
+            && d.timestamp is string && d.timestamp.size() <= 40
+            && ((d.kind == 'participant' && answer == request.auth.uid
+              && ((s.type == 'metaphor_images'
+                && d.keys().hasOnly(['uid','kind','studentName','timestamp','savedAt','selectedImageIds'])
+                && d.selectedImageIds is list && d.selectedImageIds.size() >= 1
+                && d.selectedImageIds.size() <= s.maxSelections && d.selectedImageIds.size() <= 5
+                && d.selectedImageIds.toSet().size() == d.selectedImageIds.size()
+                && d.selectedImageIds.hasOnly(s.allowedImageIds))
+              || (s.type == 'metaphor_blob'
+                && d.keys().hasOnly(['uid','kind','studentName','timestamp','savedAt','markers'])
+                && validMarkers(d.markers, s.maxSelections))))
+            || (d.kind == 'response' && s.type in ['qa','poll','wordcloud']
+              && d.keys().hasOnly(['uid','kind','studentName','timestamp','savedAt','text','status','visible'])
+              && ((d.text is string && d.text.size() > 0 && d.text.size() <= 10000) || textList(d.text))
+              && (s.type != 'poll' || (d.text is list && d.text.hasOnly(s.options) && (s.allowMultiple || d.text.size() == 1)))
+              && (s.allowMultipleResponses || answer == request.auth.uid)
+              && d.status == (s.moderationEnabled ? 'pending' : 'visible')
+              && d.visible == !s.moderationEnabled));
+        }
+        allow read: if teacher() || (own() && session(code).expiresAt > request.time);
+        allow create: if teacher() || valid();
+        allow update: if teacher() || (own() && resource.data.kind == 'participant' && valid());
+        allow delete: if teacher();
+      }
+    }
+  }
+}

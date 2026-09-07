@@ -1,3 +1,4 @@
+import { sessionLink } from './lib/firebaseConfig';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import * as d3 from 'd3'; // Richiede: npm install d3
 import { 
@@ -10,14 +11,17 @@ import {
   Maximize, Minimize, CheckCircle, XCircle, Minus, MessageCircle, Laptop, Copy, Sparkles
 } from 'lucide-react';
 
+import { initIdentity, watchIdentity, enterStudent, activeUser, isCloudTeacher, cloudLogout } from './lib/cloudIdentity';
+import { newSessionCode } from './lib/sessionCode';
+import { watchMaterials, saveMaterials } from './lib/materialStore';
 import { initialScenarios } from './scenarios_data';
 import { generateTinyUrl, getStudentBaseUrl } from './lib/shortUrl';
 
 // --- FIREBASE IMPORTS ---
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
-  getFirestore, doc, setDoc, onSnapshot, collection, getDoc, updateDoc, arrayUnion, arrayRemove 
-} from 'firebase/firestore';
+  getFirestore, doc, setDoc, onSnapshot, collection, getDoc, updateDoc, arrayUnion, updateAnswer, deleteAnswer
+} from './lib/sessionStore';
 import {
   getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken
 } from 'firebase/auth';
@@ -34,8 +38,11 @@ import SettingsModal from './components/SettingsModal';
 import TeacherPinModal from './components/TeacherPinModal';
 import GuideModal from './components/GuideModal';
 import VisualMetaphorsView from './components/VisualMetaphorsView';
+import MetaphorImagesStudentView from './components/MetaphorImagesStudentView';
+import MetaphorBlobStudentView from './components/MetaphorBlobStudentView';
 import { DEFAULT_VISUAL_METAPHORS_STATE } from './data/visualMetaphorsData';
 import {
+  syncReferencedImages,
   loadAllCustomImages,
   hydrateVisualMetaphors,
   sanitizeDataForFirestore
@@ -74,17 +81,14 @@ let auth = null;
 let APP_ID = getAppId();
 
 try {
-  if (FIREBASE_CONFIG && FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey.trim()) {
-    const app = getApps().length === 0 ? initializeApp(FIREBASE_CONFIG) : getApp();
-    db = getFirestore(app);
-    auth = getAuth(app);
-    console.log("🔥 Firebase connesso.");
-  } else {
-    console.log("ℹ️ Firebase non configurato: operatività in modalità locale.");
+  const params = new URLSearchParams(location.search);
+  if (!FIREBASE_CONFIG.apiKey && params.get('fb')) {
+    const config = decodeFBConfig(params.get('fb'));
+    if (config) saveFBConfig(config);
   }
-} catch (e) {
-  console.error("Errore inizializzazione Firebase:", e);
-}
+  const backend = initIdentity();
+  if (backend) { db = backend.db; auth = backend.auth; }
+} catch (error) { console.error('Firebase non disponibile', error); }
 
 const INITIAL_DB_DATA = {
   emotions: [
@@ -836,7 +840,7 @@ const FeedbackModeratorView = ({ sessionCode, user }) => {
         updatedResponses[idx] = { ...updatedResponses[idx], status: newStatus, visible: newStatus === 'visible' };
         
         const sessionRef = doc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'feedback_sessions'), sessionCode);
-        await updateDoc(sessionRef, { responses: updatedResponses });
+        await updateAnswer(sessionRef, updatedResponses[idx]._answerId, { status: updatedResponses[idx].status, visible: updatedResponses[idx].visible });
     };
     
     const approveResponse = async (idx) => {
@@ -844,7 +848,7 @@ const FeedbackModeratorView = ({ sessionCode, user }) => {
         const updatedResponses = [...sessionData.responses];
         updatedResponses[idx] = { ...updatedResponses[idx], status: 'visible', visible: true };
         const sessionRef = doc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'feedback_sessions'), sessionCode);
-        await updateDoc(sessionRef, { responses: updatedResponses });
+        await updateAnswer(sessionRef, updatedResponses[idx]._answerId, { status: updatedResponses[idx].status, visible: updatedResponses[idx].visible });
     };
 
     if (!sessionData) return <div className="p-8 text-center text-white">Caricamento...</div>;
@@ -909,8 +913,8 @@ const StudentEntryView = ({ onJoin, onTeacherUnlock, canUnlock = true }) => {
     const [errorMsg, setErrorMsg] = useState("");
 
     const handleEnter = () => {
-        if (!code.trim() || code.trim().length < 4) {
-            setErrorMsg("Inserisci il codice stanza a 4 lettere.");
+        if (!code.trim() || code.trim().length !== 6) {
+            setErrorMsg("Inserisci il codice stanza a 6 caratteri.");
             return;
         }
         if (!name.trim() || name.trim().length < 2) {
@@ -942,12 +946,12 @@ const StudentEntryView = ({ onJoin, onTeacherUnlock, canUnlock = true }) => {
                 
                 <div className="mb-4 text-left">
                     <label className="block text-xs font-black uppercase tracking-wider text-gray-600 mb-1.5">
-                        Codice Stanza (4 lettere):
+                        Codice Stanza (6 caratteri):
                     </label>
                     <input 
                         value={code} 
                         onChange={e => { setCode(e.target.value.toUpperCase()); setErrorMsg(""); }}
-                        placeholder="ABCD" 
+                        placeholder="K7MP4R"
                         className="w-full text-center text-3xl font-black tracking-widest p-3.5 border-4 border-black rounded-2xl focus:bg-yellow-50 outline-none uppercase font-mono bg-gray-50 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
                         maxLength={6}
                         autoFocus
@@ -976,7 +980,7 @@ const StudentEntryView = ({ onJoin, onTeacherUnlock, canUnlock = true }) => {
 
                 <button 
                     onClick={handleEnter}
-                    disabled={code.trim().length < 4 || name.trim().length < 2}
+                    disabled={code.trim().length !== 6 || name.trim().length < 2}
                     className="w-full bg-yellow-300 hover:bg-yellow-400 text-black border-3 border-black py-4 rounded-2xl font-black text-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:scale-105 active:translate-x-0.5 active:translate-y-0.5 transition-all disabled:opacity-40 disabled:scale-100 disabled:cursor-not-allowed cursor-pointer"
                 >
                     ENTRA NELL'ATTIVITÀ
@@ -1067,11 +1071,12 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
       if (set) questionsToLoad = set.questions;
     }
 
-    const code = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const code = newSessionCode();
     const sessionRef = doc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'feedback_sessions'), code);
     
     const options = sessionType === 'poll' ? pollOptionsInput.split(',').map(s => s.trim()).filter(s => s) : [];
 
+    try {
     await setDoc(sessionRef, { 
         active: true, 
         createdAt: new Date().toISOString(), 
@@ -1086,7 +1091,7 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
     });
     setSessionCode(code);
     setViewMode('qr');
-    setLoading(false);
+    } catch (error) { alert('Sessione non avviata: ' + error.message); } finally { setLoading(false); }
   };
 
   const toggleSessionStatus = async () => {
@@ -1238,7 +1243,7 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
           if (indexToRemove !== -1) {
               const newResponses = [...currentResponses];
               newResponses.splice(indexToRemove, 1);
-              await updateDoc(sessionRef, { responses: newResponses });
+              await deleteAnswer(sessionRef, currentResponses[indexToRemove]._answerId);
           }
       }
   };
@@ -1448,8 +1453,8 @@ const FeedbackTeacherView = ({ onClose, feedbackSets, pollSets, onUpdateSets, on
 
   const cleanBaseUrl = window.location.origin + window.location.pathname;
   const fbEncoded = encodeFBConfig(getFBConfig());
-  const joinUrl = `${cleanBaseUrl}?session=${sessionCode}${fbEncoded ? `&fb=${fbEncoded}` : ''}`;
-  const modUrl = `${cleanBaseUrl}?mode=moderator&session=${sessionCode}`;
+  const joinUrl = sessionLink(sessionCode);
+  const modUrl = sessionLink(sessionCode, 'moderator');
 
   return (
     <div className="flex flex-col h-full relative">
@@ -1930,7 +1935,7 @@ const FeedbackStudentView = ({ sessionCode, onExit, user, initialStudentName = "
     const [text, setText] = useState("");
     const [answers, setAnswers] = useState({}); // Per QA Multiplo
     const [selectedOptions, setSelectedOptions] = useState([]); // Array per multi-select
-    const [status, setStatus] = useState("loading");
+    const [status, setStatus] = useState(db ? "loading" : "not_found");
     const [sessionData, setSessionData] = useState(null);
     const [sending, setSending] = useState(false);
     const [sent, setSent] = useState(false);
@@ -1942,7 +1947,7 @@ const FeedbackStudentView = ({ sessionCode, onExit, user, initialStudentName = "
         if (!db || !user) return;
         
         // CONTROLLO RISPOSTA GIÀ INVIATA
-        if (localStorage.getItem(`submitted_${sessionCode}`)) {
+        if (sessionStorage.getItem(`submitted_${sessionCode}_${user.uid}`)) {
             setAlreadySubmitted(true);
         }
 
@@ -1952,9 +1957,10 @@ const FeedbackStudentView = ({ sessionCode, onExit, user, initialStudentName = "
             else { 
                 const data = snap.data();
                 setSessionData(data);
-                setStatus(data.active ? "active" : "closed");
+                setStatus(data.active && data.expiresAt?.toMillis() > Date.now() ? "active" : "closed");
+                if (!data.allowMultipleResponses && data.responses?.length) setAlreadySubmitted(true);
             }
-        });
+        }, () => setStatus("not_found"));
         return () => unsubscribe();
     }, [sessionCode, user]);
 
@@ -2020,7 +2026,7 @@ const FeedbackStudentView = ({ sessionCode, onExit, user, initialStudentName = "
             });
             
             // Segna come inviato in locale
-            localStorage.setItem(`submitted_${sessionCode}`, 'true');
+            sessionStorage.setItem(`submitted_${sessionCode}_${user.uid}`, 'true');
             if(!sessionData.allowMultipleResponses) setAlreadySubmitted(true);
             
             setSent(true);
@@ -2092,7 +2098,36 @@ const FeedbackStudentView = ({ sessionCode, onExit, user, initialStudentName = "
         );
     }
 
-    if (status === "not_found") return <div className="p-8 text-center text-red-500 font-bold min-h-screen flex items-center justify-center bg-yellow-50">Sessione non trovata.</div>;
+    if (status === "not_found") return <div className="p-8 text-center font-bold min-h-screen flex flex-col items-center justify-center bg-yellow-50"><p>Sessione non disponibile: verifica codice, connessione o scadenza.</p><button className="border-2 border-black rounded-xl p-3 mt-4" onClick={onExit}>Torna all’ingresso</button></div>;
+
+    // --- DISPATCHER PER SESSIONI METAFORE VISIVE (FOTOLINGUAGGIO & BLOB TREE) ---
+    if (sessionData?.type === 'metaphor_images') {
+        return (
+            <MetaphorImagesStudentView
+                sessionCode={sessionCode}
+                sessionData={sessionData}
+                initialStudentName={studentName}
+                onExit={onExit}
+                db={db}
+                user={user}
+                appId={sessionData.appId || APP_ID}
+            />
+        );
+    }
+
+    if (sessionData?.type === 'metaphor_blob') {
+        return (
+            <MetaphorBlobStudentView
+                sessionCode={sessionCode}
+                sessionData={sessionData}
+                initialStudentName={studentName}
+                onExit={onExit}
+                db={db}
+                user={user}
+                appId={sessionData.appId || APP_ID}
+            />
+        );
+    }
     
     // BLOCCO SE GIÀ INVIATO E NO MULTIPLI
     if (alreadySubmitted && sessionData && !sessionData.allowMultipleResponses) {
@@ -2351,6 +2386,9 @@ export default function App() {
   const [view, setView] = useState('dashboard');
   const [data, setData] = useState(null); 
   const [user, setUser] = useState(null);
+  const [cloudStatus, setCloudStatus] = useState('');
+  const saveQueue = useRef(Promise.resolve());
+  useEffect(() => { const handler = e => { setCloudStatus(e.detail); alert(e.detail); }; window.addEventListener('lss-cloud-error', handler); return () => window.removeEventListener('lss-cloud-error', handler); }, []);
   
   // Stati per le attività standard
   const [currentScenario, setCurrentScenario] = useState(null);
@@ -2373,12 +2411,12 @@ export default function App() {
 
   // Ricalcola autenticazione quando arrivano i dati aggiornati da Firebase
   useEffect(() => {
-    const isAuth = isTeacherAuthenticated(data);
+    const isAuth = db ? isCloudTeacher() : isTeacherAuthenticated(data);
     setTeacherAuth(isAuth);
     if (!isAuth && !studentSessionCode && !moderatorSessionCode) {
       setIsStudentEntry(true);
     }
-  }, [data]);
+  }, [data, user]);
 
   // Modali globali
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -2427,16 +2465,8 @@ export default function App() {
       loadAllCustomImages().catch(() => {});
 
       if (db) {
-        try {
-           if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-             await signInWithCustomToken(auth, __initial_auth_token);
-           } else {
-             throw new Error('No token');
-           }
-        } catch {
-           await signInAnonymously(auth);
-        }
-        onAuthStateChanged(auth, setUser);
+        if (sessionParam && modeParam !== 'moderator') await enterStudent();
+        setUser(activeUser());
       } else {
         // Se Firebase non è collegato, tenta di caricare il backup locale sicuro
         try {
@@ -2452,47 +2482,37 @@ export default function App() {
         setData(INITIAL_DB_DATA); 
       }
     };
-    initApp();
+    initApp().catch(error => alert(error.message));
+    const stop = watchIdentity(current => {
+      setUser(current);
+      setTeacherAuth(isCloudTeacher());
+      if (isCloudTeacher() && !sessionParam) setIsStudentEntry(false);
+    });
+    return stop;
   }, []);
 
   useEffect(() => {
-    if (!db || !user || studentSessionCode || moderatorSessionCode) return; 
-    const docRef = doc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'lifeskills'), 'main_db');
-    const unsubscribe = onSnapshot(docRef, (snap) => {
-      if (snap.exists()) {
-        const snapData = snap.data();
-        // Idrata visual_metaphors ripristinando le immagini salvate in IndexedDB/memoria
-        if (snapData && snapData.visual_metaphors) {
-          snapData.visual_metaphors = hydrateVisualMetaphors(snapData.visual_metaphors);
-        }
-        setData(snapData);
-        // Se c'è un PIN impostato su Firebase e questo dispositivo non è autorizzato, proteggi la Dashboard
-        if (isPinProtectionEnabled(snapData) && !isTeacherAuthenticated(snapData)) {
-          setIsStudentEntry(true);
-        }
-      } else { 
-        setDoc(docRef, INITIAL_DB_DATA); 
-        setData(INITIAL_DB_DATA); 
-      }
-    }, (err) => {
-      console.warn("Snapshot listener warning:", err);
-      // NON resettare i dati se la connessione o il payload ha avuto un errore temporaneo
-    });
-    return () => unsubscribe();
-  }, [user, studentSessionCode, moderatorSessionCode]);
+    if (!db || !user || !isCloudTeacher() || studentSessionCode) return;
+    return watchMaterials(db, APP_ID, INITIAL_DB_DATA, value => {
+      setData({ ...value, visual_metaphors: hydrateVisualMetaphors(value.visual_metaphors) });
+    }, error => setCloudStatus(error.message));
+  }, [user, teacherAuth, studentSessionCode]);
 
   // --- MODES RENDER ---
-  if (isStudentEntry) {
+  if (isStudentEntry || (db && !isCloudTeacher() && !studentSessionCode)) {
       return (
         <>
           <StudentEntryView 
-            onJoin={(code, name) => { 
+            onJoin={async (code, name) => {
+              if (!db) { alert("Apri il collegamento fornito dal docente: questo browser non è ancora configurato."); return; }
+              try { await enterStudent(); } catch (error) { alert(error.message); return; }
+              window.history.replaceState({}, '', `${location.pathname}?session=${encodeURIComponent(code)}`);
               setStudentSessionCode(code); 
               if (name) setStudentEnteredName(name);
               setIsStudentEntry(false); 
             }} 
             onTeacherUnlock={() => {
-              if (teacherAuth || isTeacherAuthenticated(data)) {
+              if (db ? isCloudTeacher() : isTeacherAuthenticated(data)) {
                 setIsStudentEntry(false);
               } else {
                 setIsTeacherPinModalOpen(true);
@@ -2518,11 +2538,13 @@ export default function App() {
         <FeedbackStudentView 
           sessionCode={studentSessionCode} 
           initialStudentName={studentEnteredName}
-          onExit={() => { 
+          onExit={async () => {
+            await enterStudent(true);
+            setIsStudentEntry(true);
             setStudentSessionCode(null); 
             setStudentEnteredName(""); // Svuota il nome per il prossimo studente su questo Chromebook
             window.history.replaceState({}, document.title, window.location.pathname);
-            if (!isTeacherAuthenticated(data)) {
+            if (!(db ? isCloudTeacher() : isTeacherAuthenticated(data))) {
               setIsStudentEntry(true);
             }
           }} 
@@ -2558,9 +2580,18 @@ export default function App() {
         const firestoreData = sanitizeDataForFirestore(hydratedData);
         // Pulizia completa di undefined che farebbe fallire setDoc()
         const cleanPayload = JSON.parse(JSON.stringify(firestoreData));
-        const docRef = doc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'lifeskills'), 'main_db');
-        await setDoc(docRef, cleanPayload);
+        setCloudStatus('Sincronizzazione in corso…');
+        const baseline = sanitizeDataForFirestore(data);
+        const save = saveQueue.current.then(async () => {
+          await syncReferencedImages(hydratedData, db, user, APP_ID);
+          await saveMaterials(db, APP_ID, cleanPayload, baseline);
+        });
+        saveQueue.current = save.catch(() => {});
+        await save;
+        setCloudStatus('Salvato nel cloud');
       } catch (err) {
+        setCloudStatus('Non sincronizzato: ' + err.message);
+        alert('Modifiche conservate sul dispositivo, ma non sincronizzate: ' + err.message);
         console.error('Errore durante salvataggio su Firestore:', err);
       }
     }
@@ -2619,7 +2650,7 @@ export default function App() {
     handleUpdateData({ ...data, [view]: newList });
   };
 
-  if (!data && !studentSessionCode) return <div className="min-h-screen flex items-center justify-center bg-yellow-50"><Loader2 className="animate-spin text-orange-500"/></div>;
+  if (!data && !studentSessionCode) return <div className="min-h-screen flex flex-col gap-4 items-center justify-center bg-yellow-50"><Loader2 className="animate-spin text-orange-500"/><p role="status">{cloudStatus || "Caricamento archivio…"}</p><button onClick={() => location.reload()}>Riprova</button></div>;
 
   if (view === 'emotion_thermometer') {
     return (
@@ -2691,11 +2722,14 @@ export default function App() {
                <span className="hidden sm:inline">Impostazioni</span>
              </button>
 
+             {cloudStatus && <span role="status" className="text-xs font-bold max-w-xs">{cloudStatus}</span>}
              {/* 3. TASTO BLOCCA CATTEDRA (Se PIN attivo) */}
-             {isPinProtectionEnabled(data) && (
+             {(db || isPinProtectionEnabled(data)) && (
                <button 
                  onClick={() => {
                    logoutTeacher();
+                   cloudLogout();
+                   setData(null);
                    setTeacherAuth(false);
                    setIsStudentEntry(true);
                  }} 
@@ -2704,7 +2738,7 @@ export default function App() {
                  aria-label="Blocca sessione docente"
                >
                  <Lock size={13}/>
-                 <span className="hidden md:inline">Blocca</span>
+                 <span className="hidden md:inline">Esci</span>
                </button>
              )}
 
