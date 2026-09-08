@@ -1,3 +1,5 @@
+> **Riconoscimento emozioni:** nuova vista caricata a richiesta `EmotionRecognitionView`, sezione materiali `emotion_recognition`, 61 disegni locali e importazione raster/tavole 3×2 nella libreria immagini docente esistente. Guida: `docs/EMOTION_RECOGNITION.md`. Attività guidata sul dispositivo/LIM, senza nuova stanza studenti; report temporanei senza nomi.
+
 > **Aggiornamento Firebase v2:** la descrizione storica seguente documenta la versione precedente. Per struttura cloud, autorizzazioni, immagini, accessi e rilascio di questa branch fa fede `docs/FIREBASE_V2.md`. In particolare: account docente persistente con allowlist `teachers`, identità studente distinta, sessioni root `sessions`, risposte individuali private, copie immagini per sessione e materiali per sezione con transazioni. Il PIN non autorizza accessi cloud.
 
 # Life Skills Suite — Contesto & Architettura dell'Applicazione

@@ -36,7 +36,7 @@ function openDB() {
 /**
  * Salva un'immagine personalizzata in IndexedDB e nella memoria locale
  */
-export async function saveCustomImage(id, dataUrl) {
+export async function saveCustomImage(id, dataUrl, { requirePersistent = false } = {}) {
   if (!id || !dataUrl) return;
   memoryCache.set(id, dataUrl);
 
@@ -50,6 +50,7 @@ export async function saveCustomImage(id, dataUrl) {
       tx.onerror = () => reject(tx.error);
     });
   } catch (err) {
+    if (requirePersistent) throw new Error('Salvataggio locale non disponibile. Controlla lo spazio e le impostazioni del browser prima di riprovare.');
     console.warn('Impossibile salvare immagine in IndexedDB, mantenuta in memory cache:', err);
   }
 }

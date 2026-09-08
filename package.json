@@ -8,7 +8,7 @@
     "prebuild": "rm -rf assets",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test tests/reports.test.mjs tests/firebase-setup.test.mjs",
+    "test": "node --test tests/reports.test.mjs tests/firebase-setup.test.mjs tests/emotionRecognition.test.mjs",
     "test:rules": "firebase emulators:exec --only firestore --project demo-life-skills \"node --test tests/firestore.test.mjs\"",
     "firebase:setup": "node scripts/firebase-setup.mjs"
   },

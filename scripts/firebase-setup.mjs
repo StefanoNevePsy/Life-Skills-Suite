@@ -631,7 +631,7 @@ async function release() {
   rl.pause();
   try {
     for (const args of [
-      ["--test", "tests/reports.test.mjs", "tests/firebase-setup.test.mjs"],
+      ["--test", "tests/reports.test.mjs", "tests/firebase-setup.test.mjs", "tests/emotionRecognition.test.mjs"],
       ["node_modules/vite/bin/vite.js", "build"],
     ]) {
       const result = spawnSync(process.execPath, args, {

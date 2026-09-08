@@ -38,6 +38,7 @@ import SettingsModal from './components/SettingsModal';
 import TeacherPinModal from './components/TeacherPinModal';
 import GuideModal from './components/GuideModal';
 import VisualMetaphorsView from './components/VisualMetaphorsView';
+const EmotionRecognitionView = React.lazy(() => import('./components/EmotionRecognitionView'));
 import MetaphorImagesStudentView from './components/MetaphorImagesStudentView';
 import MetaphorBlobStudentView from './components/MetaphorBlobStudentView';
 import { DEFAULT_VISUAL_METAPHORS_STATE } from './data/visualMetaphorsData';
@@ -132,6 +133,7 @@ const INITIAL_DB_DATA = {
   ],
   emotion_thermometer: EMOTION_THERMOMETER_DEFAULT,
   visual_metaphors: DEFAULT_VISUAL_METAPHORS_STATE,
+  emotion_recognition: { images: [], hidden: [] },
   scenario_sets: {},
   teacher_pin_hash: null
 };
@@ -2652,6 +2654,12 @@ export default function App() {
 
   if (!data && !studentSessionCode) return <div className="min-h-screen flex flex-col gap-4 items-center justify-center bg-yellow-50"><Loader2 className="animate-spin text-orange-500"/><p role="status">{cloudStatus || "Caricamento archivio…"}</p><button onClick={() => location.reload()}>Riprova</button></div>;
 
+  if (view === 'emotion_recognition') {
+    return <React.Suspense fallback={<p role="status" className="p-8">Caricamento attività…</p>}>
+      <EmotionRecognitionView value={data.emotion_recognition} onUpdate={next => handleUpdateData({ ...data, emotion_recognition: next })} onBack={() => setView('dashboard')} db={db} user={user} appId={APP_ID} cloudStatus={cloudStatus} />
+    </React.Suspense>;
+  }
+
   if (view === 'emotion_thermometer') {
     return (
       <EmotionThermometer
@@ -2811,6 +2819,7 @@ export default function App() {
         </header>
 
         <main className="max-w-6xl mx-auto flex flex-wrap justify-center gap-8 pb-10">
+          <Card title="Riconosci le Emozioni" subtitle="Volti e indizi" icon={Eye} color="bg-teal-200" description="Allena il riconoscimento con disegni, fotografie e immagini miste. Indizi, osservazione guidata e ripasso." onClick={() => handleViewChange('emotion_recognition')} />
           <Card title="Gestione Emozioni" subtitle="Identificazione" icon={Heart} color="bg-pink-200" description="Scenari per identificare e verbalizzare il vissuto emotivo." onClick={() => handleViewChange('emotions')} />
           <Card title="Narrazione Emotiva" subtitle="Storytelling" icon={BookOpen} color="bg-purple-200" description="Estrai un'emozione e racconta un episodio personale." onClick={() => handleViewChange('emotion_narratives')} />
           <Card title="Affettività e Sessualità" subtitle="Relazioni" icon={HeartHandshake} color="bg-rose-200" description="Dinamiche di coppia, consenso, confini e identità." onClick={() => handleViewChange('affectivity_sexuality')} />
