@@ -129,7 +129,6 @@ export default function EmotionRecognitionView({
   const [importKind, setImportKind] = useState("photo");
   const [importEmotion, setImportEmotion] = useState("gioia");
   const [sheet, setSheet] = useState(false);
-  const [credit, setCredit] = useState("");
   const [rights, setRights] = useState(false);
   const [visibleCount, setVisibleCount] = useState(24);
   const recording = useRef(false);
@@ -246,7 +245,7 @@ export default function EmotionRecognitionView({
     }
   }
   async function saveDrafts() {
-    if (!rights || !credit.trim() || !drafts.length) return;
+    if (!rights || !drafts.length) return;
     setBusy(true);
     setMessage("Salvataggio delle immagini…");
     try {
@@ -267,7 +266,7 @@ export default function EmotionRecognitionView({
           kind: draft.kind,
           emotion: draft.emotion,
           title: draft.title || label(draft.emotion),
-          credit: credit.trim().slice(0, 300),
+          credit: "",
           style: "portrait",
         });
       }
@@ -565,17 +564,6 @@ export default function EmotionRecognitionView({
                   />
                   Ogni file è una tavola con sei volti (3 colonne × 2 righe)
                 </label>
-                <label className="block">
-                  Autore, provenienza e autorizzazione/licenza
-                  <input
-                    className={select}
-                    maxLength={300}
-                    value={credit}
-                    disabled={busy}
-                    onChange={(e) => setCredit(e.target.value)}
-                    placeholder="Es. Generata con ChatGPT · personaggio immaginario"
-                  />
-                </label>
                 <label className="flex gap-2">
                   <input
                     type="checkbox"
@@ -672,7 +660,7 @@ export default function EmotionRecognitionView({
                         </div>
                       ))}
                     </div>
-                    {(!credit.trim() || !rights) && (
+                    {!rights && (
                       <div
                         id="recognition-save-requirements"
                         role="status"
@@ -681,13 +669,6 @@ export default function EmotionRecognitionView({
                         <p className="font-bold">
                           Per abilitare il salvataggio:
                         </p>
-                        {!credit.trim() && (
-                          <p>
-                            • Compila il campo “Autore, provenienza e
-                            autorizzazione/licenza” sopra le anteprime (es.
-                            “Generata con ChatGPT · personaggio immaginario”).
-                          </p>
-                        )}
                         {!rights && (
                           <p>
                             • Seleziona “Posso usare e condividere queste
@@ -699,11 +680,9 @@ export default function EmotionRecognitionView({
                     <button
                       className={button + " bg-teal-200"}
                       aria-describedby={
-                        !credit.trim() || !rights
-                          ? "recognition-save-requirements"
-                          : undefined
+                        !rights ? "recognition-save-requirements" : undefined
                       }
-                      disabled={busy || !rights || !credit.trim()}
+                      disabled={busy || !rights}
                       onClick={saveDrafts}
                     >
                       {busy
@@ -752,7 +731,8 @@ export default function EmotionRecognitionView({
                   <h2 className="font-bold mt-2">{label(image.emotion)}</h2>
                   <p className="text-xs break-words">{image.title}</p>
                   <p className="text-xs text-gray-600 mt-1">
-                    {kinds[image.kind]} · {image.credit}
+                    {kinds[image.kind]}
+                    {image.credit ? ` · ${image.credit}` : ""}
                   </p>
                   <button
                     className="mt-3 underline text-sm p-2"
