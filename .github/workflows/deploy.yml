@@ -31,7 +31,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: Install dependencies
@@ -46,7 +46,12 @@ jobs:
           VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}
           VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
           VITE_WORKSPACE_ID: ${{ vars.VITE_WORKSPACE_ID }}
-        run: npm run build
+        run: |
+          # Empty optional repository variables must not override the public fallback.
+          for key in ${!VITE_FIREBASE_@} VITE_WORKSPACE_ID; do
+            if [ -z "${!key}" ]; then unset "$key"; fi
+          done
+          npm run build
 
       - name: Prepare Pages Artifact
         run: |
@@ -58,6 +63,7 @@ jobs:
           if [ -d "public/fotolinguaggio" ]; then cp -r public/fotolinguaggio _site/; fi
           if [ -d "blobtrees" ]; then cp -r blobtrees _site/; fi
           if [ -d "public/blobtrees" ]; then cp -r public/blobtrees _site/; fi
+          cp -R public/emotion-recognition _site/
           if [ -f "life_skills.png" ]; then cp life_skills.png _site/; fi
           if [ -f "ruota_.png" ]; then cp ruota_.png _site/; fi
 

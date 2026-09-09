@@ -73,3 +73,7 @@ L'assistente riusa il login OAuth di Firebase Tools: non richiede una chiave pri
 Verifiche disponibili: test automatici della conversione, dei conflitti, della ripresa e della configurazione; controllo sintattico dello script e compilazione dell'app. La configurazione di un vero account Google, la creazione di un vero progetto e il deploy richiedono una prova amministrativa su un progetto di test: non sono stati eseguiti sul cloud durante la preparazione dello script.
 
 Riferimenti ufficiali: [ruoli del progetto](https://firebase.google.com/docs/projects/iam/roles-basic), [dominio personalizzato](https://firebase.google.com/docs/hosting/custom-domain), [limite di inizializzazione automatica di Identity Platform](https://docs.cloud.google.com/identity-platform/docs/reference/rest/v2/projects.identityPlatform/initializeAuth).
+
+## Configurazione pubblica del sito di test
+
+`app/.env.production` contiene esclusivamente i parametri pubblici del client Firebase per `life-skills-suite` e il namespace `lifeskills-default`. Non contiene password, token amministrativi o chiavi service account. Le Repository Variables valorizzate hanno priorità; il workflow ignora quelle vuote. Per cambiare progetto, aggiornare tutte le variabili Firebase e il namespace, oppure questa configurazione di fallback. La configurazione `app/.env.local` generata dall’assistente prevale durante un deploy locale. La sicurezza dei dati è applicata da Authentication e Security Rules.
