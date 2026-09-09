@@ -433,7 +433,7 @@ export default function EmotionRecognitionView({
             </section>
           </>
         )}
-        {message && (
+        {message && tab !== "library" && (
           <p
             role="status"
             className="rounded-xl border-2 border-teal-700 bg-white p-4"
@@ -603,8 +603,9 @@ export default function EmotionRecognitionView({
                 </label>
                 <p className="text-sm">
                   Fino a 12 file per volta, PNG/JPEG/WebP, massimo 12 MB
-                  ciascuno. I cambiamenti di tipo si applicano ai file scelti
-                  dopo la modifica.
+                  ciascuno. Conversione automatica in WebP, fino a 1000 pixel
+                  per ritaglio. I cambiamenti di tipo si applicano ai file
+                  scelti dopo la modifica.
                 </p>
                 {!!drafts.length && (
                   <>
@@ -671,8 +672,37 @@ export default function EmotionRecognitionView({
                         </div>
                       ))}
                     </div>
+                    {(!credit.trim() || !rights) && (
+                      <div
+                        id="recognition-save-requirements"
+                        role="status"
+                        className="rounded-xl border-2 border-amber-400 bg-amber-50 p-3 text-sm"
+                      >
+                        <p className="font-bold">
+                          Per abilitare il salvataggio:
+                        </p>
+                        {!credit.trim() && (
+                          <p>
+                            • Compila il campo “Autore, provenienza e
+                            autorizzazione/licenza” sopra le anteprime (es.
+                            “Generata con ChatGPT · personaggio immaginario”).
+                          </p>
+                        )}
+                        {!rights && (
+                          <p>
+                            • Seleziona “Posso usare e condividere queste
+                            immagini in questa app” sopra le anteprime.
+                          </p>
+                        )}
+                      </div>
+                    )}
                     <button
                       className={button + " bg-teal-200"}
+                      aria-describedby={
+                        !credit.trim() || !rights
+                          ? "recognition-save-requirements"
+                          : undefined
+                      }
                       disabled={busy || !rights || !credit.trim()}
                       onClick={saveDrafts}
                     >
@@ -688,6 +718,11 @@ export default function EmotionRecognitionView({
                       Annulla importazione
                     </button>
                   </>
+                )}
+                {message && (
+                  <p role="status" className="rounded-xl bg-teal-50 p-3">
+                    {message}
+                  </p>
                 )}
                 <p role="status" className="text-sm">
                   {db

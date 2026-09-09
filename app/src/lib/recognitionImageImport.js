@@ -40,7 +40,18 @@ export async function readRecognitionFile(file, { sheet = false } = {}) {
         canvas.width,
         canvas.height,
       );
-      return canvas.toDataURL("image/jpeg", 0.88);
+      for (const quality of [0.82, 0.7, 0.58]) {
+        const encoded = canvas.toDataURL("image/webp", quality);
+        if (!encoded.startsWith("data:image/webp;base64,")) {
+          throw new Error(
+            "Questo browser non supporta la conversione WebP. Aggiornalo e riprova.",
+          );
+        }
+        if (encoded.length < 650000) return encoded;
+      }
+      throw new Error(
+        "Immagine troppo complessa: riduci la risoluzione e riprova.",
+      );
     });
   } finally {
     URL.revokeObjectURL(url);

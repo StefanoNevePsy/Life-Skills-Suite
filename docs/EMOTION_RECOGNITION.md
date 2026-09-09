@@ -17,7 +17,7 @@ Le alternative e il testo accessibile dell'immagine non rivelano anticipatamente
 
 ## Aggiungere immagini
 
-Importazione multipla di PNG/JPEG/WebP (12 file per volta, 12 MB ciascuno, massimo 24 megapixel). Le tavole 3 × 2 vengono ritagliate in sei immagini; ogni etichetta è correggibile e i ritagli possono essere scartati prima di salvare. Fino a 300 immagini personali. Il caricamento rasterizza e ridimensiona a massimo 1000 pixel sul lato maggiore; non accetta SVG attivi o URL remoti.
+Importazione multipla di PNG/JPEG/WebP (12 file per volta, 12 MB ciascuno, massimo 24 megapixel). Le tavole 3 × 2 vengono ritagliate in sei immagini; ogni etichetta è correggibile e i ritagli possono essere scartati prima di salvare. Fino a 300 immagini personali. Il caricamento converte ogni ritaglio in WebP (qualità iniziale 82%, ridotta se necessario per restare sotto 650 KB di Base64) e ridimensiona a massimo 1000 pixel sul lato maggiore; non accetta SVG attivi o URL remoti.
 
 Il docente indica provenienza/licenza e conferma di poter condividere le immagini. Non usare archivi di ricerca in un sito pubblico senza la relativa autorizzazione. Le immagini generate vanno classificate come tali, non come fotografie reali.
 
@@ -38,3 +38,5 @@ La libreria standard è servita come file statici, con caricamento della vista a
 ## Verifica
 
 `npm test` include selezione bilanciata, filtri, alternative, conteggi e CSV. Controllare anche nel browser: importazione dei sei ritagli, persistenza dopo ricarica, filtri vuoti, aiuti/salti, report e layout Chromebook/mobile. Per le regole generali rimane `npm run test:rules`. Il deploy guidato include i test della nuova attività e i file statici della libreria.
+
+Il pulsante Salva richiede provenienza compilata e conferma di poter condividere le immagini: i requisiti mancanti sono mostrati accanto al pulsante. La conversione WebP riguarda le nuove importazioni; le immagini già salvate non vengono modificate.
