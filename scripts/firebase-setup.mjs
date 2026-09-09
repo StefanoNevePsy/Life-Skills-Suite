@@ -615,6 +615,14 @@ async function release() {
   );
   if (teacher?.fields?.enabled?.booleanValue !== true)
     throw new Error("Account docente non abilitato.");
+  // A preparation performed while the old frontend exists must not hide later edits.
+  for (const source of ready.sources || []) {
+    workspaceId(source.namespace);
+    const legacy = await readDoc(api, ready.target, `artifacts/${source.namespace}/public/data/lifeskills/main_db`);
+    if (!legacy || digest(legacy.fields) !== source.originalHash) {
+      throw new Error('L’archivio precedente è cambiato dopo la migrazione. Riconcilia le modifiche prima di pubblicare: il deploy è bloccato per non perderle.');
+    }
+  }
   for (const d of ready.documents) {
     const current = await readDoc(api, ready.target, d.path);
     if (!current || digest(current.fields) !== d.digest)

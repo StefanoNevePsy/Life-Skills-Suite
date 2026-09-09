@@ -56,6 +56,8 @@ Il menu non pubblica GitHub Pages né configura le variabili del repository GitH
 
 Se riutilizzi lo stesso indirizzo, la vecchia configurazione Firebase salvata nelle impostazioni del browser ha priorità su quella della build: aggiornala nelle impostazioni sui PC che l'avevano personalizzata. Non cancellare i dati del browser prima di aver esportato i materiali locali. Su un dominio nuovo non esiste questa configurazione precedente e i docenti dovranno effettuare il primo login; successivamente possono scegliere di restare autenticati.
 
+Tra migrazione e rilascio sospendi le modifiche nella vecchia app: usa ancora il vecchio archivio e le nuove sezioni non ne recepiscono automaticamente gli aggiornamenti. Per le migrazioni che registrano l’impronta dell’archivio precedente, il deploy controlla anche che questo non sia cambiato.
+
 Dopo il rilascio prova da un browser nuovo: accesso docente, materiali e immagini, nuova sessione, partecipazione studente e report. Conserva il progetto originale e i backup finché non hai verificato tutto.
 
 ## Menu 4 — Dominio
